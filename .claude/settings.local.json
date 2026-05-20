@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(node test-run.js)",
+      "Bash(npx playwright *)",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173)",
+      "Bash(node landing/smoke.js)",
+      "Bash(mv smoke.js smoke.cjs)",
+      "Bash(powershell -Command \"Move-Item -Force smoke.js smoke.cjs\")",
+      "Bash(node landing/smoke.cjs)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://localhost:5173)",
+      "Bash(curl -s http://localhost:3000/health)",
+      "Bash(powershell -Command \"Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess\")",
+      "Bash(powershell -Command \"Stop-Process -Id 40048 -Force; Start-Sleep -Milliseconds 600; 'killed'\")",
+      "Bash(node server/server-mock.js)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5174)",
+      "Bash(node responder/smoke.cjs)",
+      "Bash(curl -s -o /dev/null -w \"landing  5173 → %{http_code}\\\\n\" http://localhost:5173)",
+      "Bash(curl -s -o /dev/null -w \"responder 5174 → %{http_code}\\\\n\" http://localhost:5174)",
+      "Bash(curl -s -w \"backend  3000 → \" http://localhost:3000/health)",
+      "Bash(curl -s -o /dev/null -w \"expo 8081 -> %{http_code}\\\\n\" http://localhost:8081)",
+      "Bash(powershell -Command \"Get-NetTCPConnection -LocalPort 8081 -ErrorAction SilentlyContinue | Select-Object -First 1 | Format-List State, OwningProcess\")",
+      "Bash(node live-demo.cjs)",
+      "PowerShell($p = Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess; if \\($p\\) { Stop-Process -Id $p -Force; Start-Sleep -Milliseconds 600; \"killed $p\" } else { 'nothing on 3000' })",
+      "PowerShell($p = Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess; if \\($p\\) { Stop-Process -Id $p -Force; Start-Sleep -Milliseconds 600; \"killed $p\" })",
+      "Bash(curl -s -o /dev/null -w \"citizen  8081 -> %{http_code}\\\\n\" http://localhost:8081)",
+      "Bash(curl -s -o /dev/null -w \"landing  5173 -> %{http_code}\\\\n\" http://localhost:5173)",
+      "Bash(curl -s -o /dev/null -w \"dashboard 5174 -> %{http_code}\\\\n\" http://localhost:5174)",
+      "Bash(curl -s -w \"backend  3000 -> \" http://localhost:3000/health)"
+    ]
+  }
+}

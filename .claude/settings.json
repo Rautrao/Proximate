@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell($p = Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess; if \\($p\\) { Stop-Process -Id $p -Force; Start-Sleep -Milliseconds 600; \"killed $p\" } else { 'nothing on 3000' })",
+      "Bash(node responder/inspect.cjs)"
+    ]
+  }
+}
