@@ -19,17 +19,42 @@ export function ResponderList() {
   return (
     <View style={styles.container}>
       <Text style={styles.heading}>{responders.length} responding nearby</Text>
-      {responders.map((r) => (
-        <View key={r.id} style={styles.row}>
-          <Ionicons name="checkmark-circle" size={20} color="#22C55E" />
-          <View style={styles.nameGroup}>
-            <Text style={styles.name}>{r.name}</Text>
-            <Text style={styles.distance}>{r.distance}m away</Text>
+      {responders.map((r) => {
+        const hasEta = typeof r.routeDurationSeconds === 'number';
+        const distanceLabel = hasEta
+          ? formatDistance(r.routeDistanceMeters!)
+          : `${r.distance}m away`;
+        return (
+          <View key={r.id} style={styles.row}>
+            <Ionicons name="checkmark-circle" size={20} color="#22C55E" />
+            <View style={styles.nameGroup}>
+              <Text style={styles.name}>{r.name}</Text>
+              <Text style={styles.distance}>{distanceLabel}</Text>
+            </View>
+            {hasEta && (
+              <View style={styles.etaPill}>
+                <Ionicons name="time-outline" size={11} color="#22C55E" />
+                <Text style={styles.etaText}>ETA {formatDuration(r.routeDurationSeconds!)}</Text>
+              </View>
+            )}
           </View>
-        </View>
-      ))}
+        );
+      })}
     </View>
   );
+}
+
+function formatDistance(meters: number): string {
+  if (meters < 1000) return `${Math.round(meters)}m away`;
+  return `${(meters / 1000).toFixed(1)} km away`;
+}
+
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  const m = Math.round(seconds / 60);
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60);
+  return `${h}h ${m % 60}m`;
 }
 
 const styles = StyleSheet.create({
@@ -59,5 +84,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'center',
     paddingHorizontal: 20,
+  },
+  etaPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#052e16',
+    borderColor: '#166534',
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  etaText: {
+    color: '#22C55E',
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
 });

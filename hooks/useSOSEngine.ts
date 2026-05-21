@@ -25,7 +25,7 @@ const haptic = {
 
 export function useSOSEngine() {
   const router = useRouter();
-  const { status, currentTier, setStatus, setTier, addResponder, reset } = useSOSStore();
+  const { status, currentTier, setStatus, setTier, addResponder, updateResponderEta, reset } = useSOSStore();
   const user = useAuthStore((s) => s.user);
   const escalationRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -91,7 +91,7 @@ export function useSOSEngine() {
     router.replace('/(tabs)');
   }, [clearEscalation, reset, router, user]);
 
-  // Wire up incoming responder acknowledgements from the server
+  // Wire up incoming responder acknowledgements + ETA updates from the server
   useEffect(() => {
     const socket = getSocket();
 
@@ -104,11 +104,24 @@ export function useSOSEngine() {
       haptic.light();
     };
 
+    const handleEta = (eta: {
+      id: string;
+      routeDistanceMeters: number;
+      routeDurationSeconds: number;
+    }) => {
+      updateResponderEta(eta.id, {
+        routeDistanceMeters: eta.routeDistanceMeters,
+        routeDurationSeconds: eta.routeDurationSeconds,
+      });
+    };
+
     socket.on('sos:responder_ack', handleAck);
+    socket.on('sos:responder_eta', handleEta);
     return () => {
       socket.off('sos:responder_ack', handleAck);
+      socket.off('sos:responder_eta', handleEta);
     };
-  }, [addResponder]);
+  }, [addResponder, updateResponderEta]);
 
   useEffect(() => () => clearEscalation(), [clearEscalation]);
 

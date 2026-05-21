@@ -91,6 +91,26 @@ io.on('connection', (socket) => {
       io.to(`user:${inc.userId}`).emit('sos:responder_ack', responder);
       console.log(`[ACK] ${responder.name} → incident ${incidentId}`);
     });
+
+    // Follow-up event sent by the dashboard once it resolves a real road-network
+    // route via OSRM. We relay it straight to the victim's socket room so the
+    // citizen UI can show "Officer Mehta · ETA 4 min" instead of just a name.
+    socket.on('responder:eta', ({ incidentId, responderId, routeDistanceMeters, routeDurationSeconds }) => {
+      const inc = incidents.get(incidentId);
+      if (!inc) return;
+      const target = (inc.responders || []).find((r) => r.id === responderId);
+      if (target) {
+        target.routeDistanceMeters = routeDistanceMeters;
+        target.routeDurationSeconds = routeDurationSeconds;
+        io.to('responders').emit('incident:update', inc);
+      }
+      io.to(`user:${inc.userId}`).emit('sos:responder_eta', {
+        id: responderId,
+        routeDistanceMeters,
+        routeDurationSeconds,
+      });
+      console.log(`[ETA] responder ${responderId} → ${routeDistanceMeters}m / ${routeDurationSeconds}s`);
+    });
     return;
   }
 

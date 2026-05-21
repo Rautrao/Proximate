@@ -114,10 +114,24 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     console.log('    page text:', citizenAfter.slice(0, 300).replace(/\n/g, ' '));
   }
 
+  // ── G. Wait for OSRM ETA to arrive on citizen side ─────────────────────────
+  console.log('▸ Citizen → waiting for ETA event from dashboard');
+  await citizen.waitForTimeout(4500);
+  await shot(citizen, '07-citizen-eta-received');
+  const citizenWithEta = await citizen.locator('body').innerText();
+  if (citizenWithEta.match(/ETA\s+\d/i)) {
+    const etaLine = citizenWithEta.split('\n').find((l) => /ETA/i.test(l));
+    console.log(`  ✓ Citizen received ETA: ${etaLine?.trim()}`);
+  } else {
+    console.log('  ✗ Citizen did NOT receive ETA');
+    console.log('    page text:', citizenWithEta.slice(0, 300).replace(/\n/g, ' '));
+  }
+
   await browser.close();
 
   console.log('\n✓ Two-screen live demo verified');
   ['01-citizen-home','02-dashboard-idle','03-citizen-sos-active',
-   '04-dashboard-incident','05-dashboard-acked','06-citizen-responder-received']
+   '04-dashboard-incident','05-dashboard-acked','06-citizen-responder-received',
+   '07-citizen-eta-received']
     .forEach((n) => console.log('  📸', path.join(SHOT_DIR, `live-${n}.png`)));
 })().catch((e) => { console.error('✗', e); process.exit(1); });

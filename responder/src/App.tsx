@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { io, Socket } from 'socket.io-client';
-import { MapContainer, TileLayer, Circle, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import {
   ShieldCheck,
@@ -122,10 +121,17 @@ export default function App() {
           return [incident, ...prev];
         }
         if (exists.tier !== incident.tier) {
-          addLog(
-            'escalation',
-            `${incident.victimName} escalated to TIER ${incident.tier} · ${incident.radius}m`
-          );
+          if (incident.tier >= 3) {
+            addLog(
+              'escalation',
+              `POLICE PRIORITY — ${incident.victimName} · TIER 3 · ${incident.radius}m`
+            );
+          } else {
+            addLog(
+              'escalation',
+              `${incident.victimName} escalated to TIER ${incident.tier} · ${incident.radius}m`
+            );
+          }
         }
         if (incident.responders.length > exists.responders.length) {
           const newR = incident.responders[incident.responders.length - 1];
@@ -158,25 +164,53 @@ export default function App() {
       setIncidents((p) => [inc, ...p]);
       addLog('incident', `New SOS — ${inc.victimName} · TIER 1`);
 
-      const escalate = setTimeout(() => {
+      const t2 = setTimeout(() => {
         setIncidents((p) =>
-          p.map((i) => (i.id === inc.id ? { ...i, tier: 2, radius: 1000 } : i))
+          p.map((i) =>
+            i.id === inc.id
+              ? {
+                  ...i,
+                  tier: 2,
+                  radius: 1000,
+                  escalationLog: [...i.escalationLog, { tier: 2, radius: 1000, at: Date.now() }],
+                }
+              : i
+          )
         );
         addLog('escalation', `${inc.victimName} escalated to TIER 2 · 1000m`);
       }, 9000);
+
+      const t3 = setTimeout(() => {
+        setIncidents((p) =>
+          p.map((i) =>
+            i.id === inc.id
+              ? {
+                  ...i,
+                  tier: 3,
+                  radius: 2000,
+                  escalationLog: [...i.escalationLog, { tier: 3, radius: 2000, at: Date.now() }],
+                }
+              : i
+          )
+        );
+        addLog('escalation', `POLICE PRIORITY — ${inc.victimName} · TIER 3 · 2km`);
+      }, 18000);
+
       const resolve = setTimeout(() => {
         setIncidents((p) =>
           p.map((i) => (i.id === inc.id ? { ...i, status: 'cancelled', endedAt: Date.now() } : i))
         );
         addLog('cancel', `${inc.victimName} alert resolved`);
-      }, 22000);
+      }, 34000);
+
       return () => {
-        clearTimeout(escalate);
+        clearTimeout(t2);
+        clearTimeout(t3);
         clearTimeout(resolve);
       };
     };
     inject();
-    const id = setInterval(inject, 14000);
+    const id = setInterval(inject, 18000);
     return () => clearInterval(id);
   }, [demoMode]);
 
@@ -209,22 +243,92 @@ export default function App() {
     socketRef.current?.emit('responder:ack', { incidentId: inc.id, distance });
   }
 
+  const tier3Active = active.some((i) => i.tier >= 3);
+
   return (
-    <div className="min-h-screen bg-zinc-950 font-sans text-zinc-50 antialiased selection:bg-amber-400/30 selection:text-amber-100">
+    <div className="flex h-screen flex-col bg-zinc-950 font-sans text-zinc-50 antialiased selection:bg-amber-400/30 selection:text-amber-100">
       <Header connected={connected} activeCount={active.length} demoMode={demoMode} onToggleDemo={setDemoMode} />
 
-      <main className="grid h-[calc(100vh-64px)] grid-cols-1 md:grid-cols-[320px_1fr] xl:grid-cols-[320px_1fr_340px]">
+      <PolicePriorityBanner
+        active={tier3Active}
+        incidents={active.filter((i) => i.tier >= 3)}
+      />
+
+      <main className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[320px_1fr] xl:grid-cols-[320px_1fr_340px]">
         <IncidentList
           incidents={incidents}
           selectedId={selected?.id ?? null}
           onSelect={(id) => setSelectedId(id)}
         />
 
-        <TacticalPanel incident={selected} onAck={ackIncident} />
+        <TacticalPanel
+          incident={selected}
+          onAck={ackIncident}
+          onRouteResolved={(incidentId, responderId, info) => {
+            // Only push ETAs for responders we're playing as. Demo incidents
+            // stay local; real incidents emit through the socket so the
+            // citizen UI can show "Officer Mehta · ETA 4 min".
+            if (incidentId.startsWith('demo-')) return;
+            socketRef.current?.emit('responder:eta', {
+              incidentId,
+              responderId,
+              routeDistanceMeters: info.distanceMeters,
+              routeDurationSeconds: info.durationSeconds,
+            });
+          }}
+        />
 
         <ActivityFeed log={log} />
       </main>
     </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * Police Priority Banner — appears when any incident escalates to tier 3
+ * ────────────────────────────────────────────────────────────────────────── */
+function PolicePriorityBanner({
+  active,
+  incidents,
+}: {
+  active: boolean;
+  incidents: Incident[];
+}) {
+  return (
+    <AnimatePresence>
+      {active && (
+        <motion.div
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: 'auto', opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+          className="overflow-hidden border-b border-red-500/40 bg-red-500/10"
+        >
+          <div className="relative flex items-center justify-between px-8 py-2.5">
+            <div className="absolute inset-0 animate-pulse bg-red-500/5" />
+            <div className="relative flex items-center gap-3">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500/60" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+              </span>
+              <span className="font-mono text-[11px] uppercase tracking-[0.28em] text-red-300">
+                Police Priority Escalation
+              </span>
+              <span className="hidden text-[12px] text-zinc-400 sm:inline">
+                · {incidents.length} incident{incidents.length === 1 ? '' : 's'} require{incidents.length === 1 ? 's' : ''} immediate dispatch
+              </span>
+            </div>
+            <div className="relative hidden items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-red-300/80 md:flex">
+              {incidents.slice(0, 3).map((i) => (
+                <span key={i.id} className="rounded-full border border-red-500/40 bg-red-500/10 px-2 py-0.5">
+                  {i.victimName}
+                </span>
+              ))}
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
 
@@ -387,6 +491,7 @@ function IncidentCard({
 }) {
   const elapsed = useElapsed(inc.startedAt);
   const tone = TIER_LABELS[inc.tier].tone;
+  const isPolice = inc.tier >= 3;
 
   return (
     <motion.button
@@ -397,22 +502,39 @@ function IncidentCard({
       transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
       onClick={onClick}
       className={`group relative w-full overflow-hidden rounded-2xl border p-4 text-left transition ${
-        selected
+        isPolice
+          ? selected
+            ? 'border-red-500/60 bg-red-500/[0.06]'
+            : 'border-red-500/30 hover:border-red-500/60 hover:bg-red-500/[0.04]'
+          : selected
           ? 'border-amber-400/40 bg-amber-400/[0.04]'
           : 'border-zinc-800 hover:border-zinc-700 hover:bg-zinc-900/40'
       }`}
     >
-      <div className={`absolute inset-y-0 left-0 w-[3px] bg-amber-400 ${tone}`} />
+      <div
+        className={`absolute inset-y-0 left-0 w-[3px] ${isPolice ? 'bg-red-500' : 'bg-amber-400'} ${tone}`}
+      />
 
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm font-medium text-zinc-50">{inc.victimName}</p>
-          <p className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.18em] text-amber-300/80">
+          <p
+            className={`mt-0.5 font-mono text-[10px] uppercase tracking-[0.18em] ${
+              isPolice ? 'text-red-300' : 'text-amber-300/80'
+            }`}
+          >
             {TIER_LABELS[inc.tier].label} · {TIER_LABELS[inc.tier].radiusLabel.split(' ')[0]}
+            {isPolice && ' · POLICE'}
           </p>
         </div>
         <ChevronRight
-          className={`h-4 w-4 transition ${selected ? 'text-amber-300' : 'text-zinc-600 group-hover:text-zinc-400'}`}
+          className={`h-4 w-4 transition ${
+            selected
+              ? isPolice
+                ? 'text-red-300'
+                : 'text-amber-300'
+              : 'text-zinc-600 group-hover:text-zinc-400'
+          }`}
         />
       </div>
 
@@ -436,12 +558,55 @@ function IncidentCard({
 function TacticalPanel({
   incident,
   onAck,
+  onRouteResolved,
 }: {
   incident: Incident | null;
   onAck: (i: Incident) => void;
+  onRouteResolved?: (
+    incidentId: string,
+    responderId: string,
+    info: { distanceMeters: number; durationSeconds: number }
+  ) => void;
 }) {
   // Hooks must run unconditionally — call before any early return.
   const elapsed = useElapsed(incident?.startedAt ?? Date.now());
+  const [routes, setRoutes] = useState<Map<string, RouteInfo>>(new Map());
+
+  // Fetch OSRM routes whenever a new responder joins. Cache prevents repeats.
+  useEffect(() => {
+    if (!incident) return;
+    incident.responders.forEach((r) => {
+      const cacheKey = `${incident.id}:${r.id}`;
+      if (routes.has(r.id)) return;
+      const bearing = hashBearing(r.id);
+      const pos = offsetFrom(
+        incident.location,
+        Math.min(r.distance, 1800),
+        bearing
+      );
+      fetchRoute(pos, [incident.location.lat, incident.location.lng], cacheKey).then(
+        (info) => {
+          if (!info) return;
+          setRoutes((prev) => {
+            if (prev.has(r.id)) return prev;
+            const next = new Map(prev);
+            next.set(r.id, info);
+            return next;
+          });
+          // Relay the ETA back to the citizen via the parent's socket.
+          onRouteResolved?.(incident.id, r.id, {
+            distanceMeters: info.distanceMeters,
+            durationSeconds: info.durationSeconds,
+          });
+        }
+      );
+    });
+  }, [incident, routes, onRouteResolved]);
+
+  // When switching to a different incident, drop the old routes.
+  useEffect(() => {
+    setRoutes(new Map());
+  }, [incident?.id]);
 
   if (!incident) {
     return (
@@ -510,9 +675,9 @@ function TacticalPanel({
         </div>
       </div>
 
-      <TacticalMap incident={incident} />
+      <TacticalMap incident={incident} routes={routes} />
 
-      <ResponderRoster incident={incident} responded={responded} />
+      <ResponderRoster incident={incident} responded={responded} routes={routes} />
 
       <EscalationTimeline incident={incident} />
     </section>
@@ -578,103 +743,160 @@ function hashBearing(id: string) {
   return Math.abs(h % 360);
 }
 
-function FlyToIncident({ lat, lng }: { lat: number; lng: number }) {
-  const map = useMap();
-  useEffect(() => {
-    // When the map mounts before its parent has its final layout, Leaflet
-    // sets a stale pan origin. setView updates the center, but layers added
-    // before that (markers, circles) keep their stale layer-point positions.
-    // The fix is to invalidate, setView, then force every layer to reproject.
-    const ll: [number, number] = [lat, lng];
-    const settle = () => {
-      map.invalidateSize({ animate: false });
-      map.setView(ll, 14, { animate: false });
-      map.eachLayer((layer) => {
-        // Vector layers (Circle/Polygon) need redraw; Markers need update.
-        const anyLayer = layer as unknown as {
-          redraw?: () => void;
-          update?: () => void;
-        };
-        anyLayer.redraw?.();
-        anyLayer.update?.();
-      });
+type RouteInfo = {
+  coords: [number, number][];
+  distanceMeters: number;
+  durationSeconds: number;
+};
+
+// In-memory cache so we don't hammer the public OSRM demo server on re-renders.
+const routeCache = new Map<string, RouteInfo>();
+
+// OSRM public demo: free, no API key. Returns a GeoJSON LineString of the
+// actual road network path from start to end plus distance + duration.
+async function fetchRoute(
+  start: [number, number],
+  end: [number, number],
+  cacheKey: string
+): Promise<RouteInfo | null> {
+  const cached = routeCache.get(cacheKey);
+  if (cached) return cached;
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${start[1]},${start[0]};${end[1]},${end[0]}?overview=full&geometries=geojson`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const data = await res.json();
+    const route = data?.routes?.[0];
+    const coords = route?.geometry?.coordinates as [number, number][] | undefined;
+    if (!coords?.length) return null;
+    const info: RouteInfo = {
+      coords: coords.map(([lng, lat]) => [lat, lng] as [number, number]),
+      distanceMeters: route.distance ?? 0,
+      durationSeconds: route.duration ?? 0,
     };
-
-    const container = map.getContainer();
-    const ro = new ResizeObserver(() => settle());
-    ro.observe(container);
-
-    settle();
-    const r1 = requestAnimationFrame(() => {
-      settle();
-      requestAnimationFrame(settle);
-    });
-
-    return () => {
-      cancelAnimationFrame(r1);
-      ro.disconnect();
-    };
-  }, [lat, lng, map]);
-  return null;
+    routeCache.set(cacheKey, info);
+    return info;
+  } catch {
+    return null;
+  }
 }
 
-function TacticalMap({ incident }: { incident: Incident }) {
+function TacticalMap({
+  incident,
+  routes,
+}: {
+  incident: Incident;
+  routes: Map<string, RouteInfo>;
+}) {
   const { lat, lng } = incident.location;
-  const center: [number, number] = [lat, lng];
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  const layersRef = useRef<L.Layer[]>([]);
+  const currentRunRef = useRef(0);
 
-  const tiers = [
-    { tier: 1, radius: 500 },
-    { tier: 2, radius: 1000 },
-    { tier: 3, radius: 2000 },
-  ];
+  // Create the map exactly once when the host div mounts.
+  useEffect(() => {
+    if (!containerRef.current || mapRef.current) return;
+    const map = L.map(containerRef.current, {
+      center: [lat, lng],
+      zoom: 14,
+      scrollWheelZoom: false,
+      zoomControl: false,
+      attributionControl: true,
+    });
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png', {
+      subdomains: 'abcd',
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap &copy; CARTO',
+    }).addTo(map);
+    mapRef.current = map;
+    return () => {
+      map.remove();
+      mapRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Re-render overlays (circles + markers) whenever the incident changes.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    // Clear previous overlays.
+    layersRef.current.forEach((l) => map.removeLayer(l));
+    layersRef.current = [];
+
+    // Ensure size + center are correct BEFORE we add layers, so each
+    // layer's projection is computed against the right pixel origin.
+    map.invalidateSize({ animate: false });
+    map.setView([lat, lng], 14, { animate: false });
+
+    const tiers = [
+      { tier: 1, radius: 500 },
+      { tier: 2, radius: 1000 },
+      { tier: 3, radius: 2000 },
+    ];
+
+    tiers.forEach(({ tier, radius }) => {
+      const isActive = incident.tier >= tier;
+      const isCurrent = incident.tier === tier;
+      // Tier 3 = police priority. Break the amber-only palette here on purpose:
+      // emergency UX should signal urgency, not stay aesthetically pure.
+      const isPolice = isCurrent && tier === 3;
+      const accent = isPolice ? '#ef4444' : '#fbbf24';
+      const circle = L.circle([lat, lng], {
+        radius,
+        color: isActive ? accent : 'rgba(255,255,255,0.18)',
+        weight: isCurrent ? (isPolice ? 2.5 : 2) : 1,
+        opacity: isCurrent ? 0.95 : isActive ? 0.6 : 0.4,
+        dashArray: isCurrent ? undefined : '4 6',
+        fillColor: accent,
+        fillOpacity: isCurrent ? (isPolice ? 0.1 : 0.06) : 0,
+      }).addTo(map);
+      layersRef.current.push(circle);
+    });
+
+    const victim = L.marker([lat, lng], { icon: VICTIM_ICON }).addTo(map);
+    layersRef.current.push(victim);
+
+    currentRunRef.current += 1;
+
+    incident.responders.forEach((r) => {
+      const bearing = hashBearing(r.id);
+      const pos = offsetFrom({ lat, lng }, Math.min(r.distance, 1800), bearing);
+      const m = L.marker(pos, { icon: RESPONDER_ICON }).addTo(map);
+      layersRef.current.push(m);
+
+      // Draw the road-network route if we already have it from the parent.
+      const route = routes.get(r.id);
+      if (route?.coords?.length) {
+        const outline = L.polyline(route.coords, {
+          color: '#fbbf24',
+          weight: 6,
+          opacity: 0.18,
+          lineCap: 'round',
+          lineJoin: 'round',
+        }).addTo(map);
+        const core = L.polyline(route.coords, {
+          color: '#fbbf24',
+          weight: 2.5,
+          opacity: 0.95,
+          dashArray: '6 8',
+          lineCap: 'round',
+          lineJoin: 'round',
+        }).addTo(map);
+        layersRef.current.push(outline, core);
+      }
+    });
+  }, [lat, lng, incident.tier, incident.responders, incident.id, routes]);
 
   return (
-    <div className="relative mx-10 my-8 overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-900/40">
-      <div className="relative" style={{ height: 440 }}>
-        <MapContainer
-          center={center}
-          zoom={14}
-          scrollWheelZoom={false}
-          zoomControl={false}
-          attributionControl={true}
-          style={{ height: '100%', width: '100%' }}
-        >
-          <TileLayer
-            url="https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png"
-            subdomains="abcd"
-            maxZoom={19}
-            attribution='&copy; OpenStreetMap &copy; CARTO'
-          />
-          <FlyToIncident lat={lat} lng={lng} />
-
-          {tiers.map(({ tier, radius }) => {
-            const isActive = incident.tier >= tier;
-            const isCurrent = incident.tier === tier;
-            return (
-              <Circle
-                key={tier}
-                center={center}
-                radius={radius}
-                pathOptions={{
-                  color: isActive ? '#fbbf24' : 'rgba(255,255,255,0.18)',
-                  weight: isCurrent ? 2 : 1,
-                  opacity: isCurrent ? 0.95 : isActive ? 0.6 : 0.4,
-                  dashArray: isCurrent ? undefined : '4 6',
-                  fillColor: '#fbbf24',
-                  fillOpacity: isCurrent ? 0.06 : 0,
-                }}
-              />
-            );
-          })}
-
-          <Marker position={center} icon={VICTIM_ICON} />
-
-          {incident.responders.map((r) => {
-            const bearing = hashBearing(r.id);
-            const pos = offsetFrom({ lat, lng }, Math.min(r.distance, 1800), bearing);
-            return <Marker key={r.id} position={pos} icon={RESPONDER_ICON} />;
-          })}
-        </MapContainer>
+    <div className="relative mx-10 my-8 shrink-0 overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-900/40">
+      <div className="relative">
+        <div
+          ref={containerRef}
+          style={{ height: 440, width: '100%', position: 'relative', flexShrink: 0 }}
+        />
 
         {/* HUD overlays */}
         <div className="pointer-events-none absolute left-5 top-5 z-[400] flex items-center gap-2 rounded-full border border-zinc-800/80 bg-zinc-950/70 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.22em] text-zinc-300 backdrop-blur-md">
@@ -685,17 +907,20 @@ function TacticalMap({ incident }: { incident: Incident }) {
           {lat.toFixed(4)}°N · {lng.toFixed(4)}°E
         </div>
         <div className="pointer-events-none absolute bottom-5 left-5 z-[400] flex flex-col gap-1 font-mono text-[10px] uppercase tracking-[0.22em]">
-          {tiers.map(({ tier, radius }) => {
+          {[
+            { tier: 1, radius: 500 },
+            { tier: 2, radius: 1000 },
+            { tier: 3, radius: 2000 },
+          ].map(({ tier, radius }) => {
             const isActive = incident.tier >= tier;
+            const isPolice = isActive && tier === 3;
+            const textCls = isPolice ? 'text-red-300' : isActive ? 'text-amber-300' : 'text-zinc-600';
+            const dotCls = isPolice ? 'bg-red-500' : isActive ? 'bg-amber-400' : 'bg-zinc-700';
             return (
-              <div
-                key={tier}
-                className={`flex items-center gap-2 ${isActive ? 'text-amber-300' : 'text-zinc-600'}`}
-              >
-                <span
-                  className={`h-1.5 w-1.5 rounded-full ${isActive ? 'bg-amber-400' : 'bg-zinc-700'}`}
-                />
+              <div key={tier} className={`flex items-center gap-2 ${textCls}`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${dotCls}`} />
                 Tier {tier} · {radius < 1000 ? `${radius}m` : `${radius / 1000}km`}
+                {isPolice && <span className="ml-1 text-red-400">· POLICE</span>}
               </div>
             );
           })}
@@ -705,7 +930,15 @@ function TacticalMap({ incident }: { incident: Incident }) {
   );
 }
 
-function ResponderRoster({ incident, responded }: { incident: Incident; responded: boolean }) {
+function ResponderRoster({
+  incident,
+  responded,
+  routes,
+}: {
+  incident: Incident;
+  responded: boolean;
+  routes: Map<string, RouteInfo>;
+}) {
   return (
     <div className="border-t border-zinc-800/60 px-10 py-6">
       <p className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">
@@ -717,26 +950,45 @@ function ResponderRoster({ incident, responded }: { incident: Incident; responde
         </p>
       ) : (
         <ul className="mt-4 space-y-3">
-          {incident.responders.map((r) => (
-            <li key={r.id} className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3">
-              <div className="flex items-center gap-3">
-                <div className="grid h-8 w-8 place-items-center rounded-full border border-zinc-800 bg-zinc-950 text-xs">
-                  {r.name[0]}
+          {incident.responders.map((r) => {
+            const route = routes.get(r.id);
+            return (
+              <li key={r.id} className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <div className="grid h-8 w-8 place-items-center rounded-full border border-zinc-800 bg-zinc-950 text-xs">
+                    {r.name[0]}
+                  </div>
+                  <div>
+                    <p className="text-sm text-zinc-100">{r.name}</p>
+                    <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-zinc-500">
+                      {route
+                        ? `${formatDistance(route.distanceMeters)} · ETA ${formatDuration(route.durationSeconds)}`
+                        : `${r.distance}m away · routing…`}
+                      <span className="text-zinc-700"> · ack {timeAgo(r.acknowledgedAt)}</span>
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm text-zinc-100">{r.name}</p>
-                  <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-zinc-500">
-                    {r.distance}m away · ack {timeAgo(r.acknowledgedAt)}
-                  </p>
-                </div>
-              </div>
-              <CheckCircle2 className="h-4 w-4 text-emerald-400" strokeWidth={1.6} />
-            </li>
-          ))}
+                <CheckCircle2 className="h-4 w-4 text-emerald-400" strokeWidth={1.6} />
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
   );
+}
+
+function formatDistance(meters: number): string {
+  if (meters < 1000) return `${Math.round(meters)} m`;
+  return `${(meters / 1000).toFixed(1)} km`;
+}
+
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  const m = Math.round(seconds / 60);
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60);
+  return `${h}h ${m % 60}m`;
 }
 
 function EscalationTimeline({ incident }: { incident: Incident }) {
@@ -744,17 +996,26 @@ function EscalationTimeline({ incident }: { incident: Incident }) {
     <div className="border-t border-zinc-800/60 px-10 py-6">
       <p className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">Escalation chain</p>
       <ol className="mt-5 space-y-3">
-        {incident.escalationLog.map((step, i) => (
-          <li key={i} className="flex items-center gap-4 font-mono text-[11px] uppercase tracking-[0.16em]">
-            <span className="grid h-6 w-6 place-items-center rounded-full border border-amber-400/40 text-amber-300">
-              {step.tier}
-            </span>
-            <span className="text-zinc-400">{formatTime(step.at)}</span>
-            <span className="text-zinc-500">·</span>
-            <span className="text-zinc-300">Tier {step.tier}</span>
-            <span className="text-zinc-500">· radius {step.radius}m</span>
-          </li>
-        ))}
+        {incident.escalationLog.map((step, i) => {
+          const isPolice = step.tier >= 3;
+          return (
+            <li key={i} className="flex items-center gap-4 font-mono text-[11px] uppercase tracking-[0.16em]">
+              <span
+                className={`grid h-6 w-6 place-items-center rounded-full border ${
+                  isPolice ? 'border-red-500/50 text-red-300' : 'border-amber-400/40 text-amber-300'
+                }`}
+              >
+                {step.tier}
+              </span>
+              <span className="text-zinc-400">{formatTime(step.at)}</span>
+              <span className="text-zinc-500">·</span>
+              <span className={isPolice ? 'text-red-300' : 'text-zinc-300'}>
+                Tier {step.tier}{isPolice && ' · POLICE'}
+              </span>
+              <span className="text-zinc-500">· radius {step.radius}m</span>
+            </li>
+          );
+        })}
       </ol>
     </div>
   );
@@ -780,21 +1041,27 @@ function ActivityFeed({ log }: { log: LogEntry[] }) {
 
       <div className="flex-1 space-y-2 overflow-y-auto p-4">
         <AnimatePresence initial={false}>
-          {log.map((e) => (
-            <motion.div
-              key={e.id}
-              layout
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-              className={`rounded-xl border-l-2 bg-zinc-900/30 px-4 py-3 text-[12px] leading-snug ${kindStyles[e.kind]}`}
-            >
-              <p className="text-zinc-100">{e.message}</p>
-              <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.18em] text-zinc-500">
-                {formatTime(e.at)}
-              </p>
-            </motion.div>
-          ))}
+          {log.map((e) => {
+            const isPolice = e.message.includes('POLICE PRIORITY');
+            const cls = isPolice
+              ? 'text-red-300 border-red-500/60 bg-red-500/[0.06]'
+              : `${kindStyles[e.kind]} bg-zinc-900/30`;
+            return (
+              <motion.div
+                key={e.id}
+                layout
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className={`rounded-xl border-l-2 px-4 py-3 text-[12px] leading-snug ${cls}`}
+              >
+                <p className={isPolice ? 'text-red-100' : 'text-zinc-100'}>{e.message}</p>
+                <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.18em] text-zinc-500">
+                  {formatTime(e.at)}
+                </p>
+              </motion.div>
+            );
+          })}
         </AnimatePresence>
         {log.length === 0 && (
           <p className="rounded-xl border border-dashed border-zinc-800 px-4 py-6 text-center text-xs text-zinc-600">

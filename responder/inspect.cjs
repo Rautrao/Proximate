@@ -8,10 +8,13 @@ const os = require('os');
   const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
 
   const errors = [];
+  const logs = [];
   page.on('pageerror', (e) => errors.push(`PAGE: ${e.message}`));
   page.on('console', (m) => {
     if (m.type() === 'error' || m.type() === 'warning') {
       errors.push(`${m.type().toUpperCase()}: ${m.text()}`);
+    } else if (m.text().startsWith('[map ') || m.text().startsWith('[after ') || m.text().startsWith('[layers')) {
+      logs.push(m.text());
     }
   });
 
@@ -51,17 +54,27 @@ const os = require('os');
       victimDots: document.querySelectorAll('.victim-marker').length,
       markers: document.querySelectorAll('.leaflet-marker-icon').length,
       markerRects: Array.from(document.querySelectorAll('.leaflet-marker-icon')).map((m) => r(m)),
+      markerStyles: Array.from(document.querySelectorAll('.leaflet-marker-icon')).map((m) => ({
+        cssTransform: m.style.transform,
+        cssTop: m.style.top || '',
+        cssLeft: m.style.left || '',
+        computedTransform: getComputedStyle(m).transform,
+      })),
+      markerPaneRect: r(document.querySelector('.leaflet-marker-pane')),
+      markerPaneTransform: xform(document.querySelector('.leaflet-marker-pane')),
     };
   });
   console.log('DOM stats:', JSON.stringify(stats, null, 2));
 
   await page.screenshot({ path: path.join(os.tmpdir(), 'inspect-dash.png') });
 
+  if (logs.length) {
+    console.log('\n--- Map init logs ---');
+    logs.forEach((e) => console.log(e));
+  }
   if (errors.length) {
     console.log('\n--- Errors/Warnings ---');
     errors.slice(0, 15).forEach((e) => console.log(e));
-  } else {
-    console.log('\n(no errors or warnings)');
   }
 
   await browser.close();
