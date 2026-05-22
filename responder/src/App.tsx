@@ -81,6 +81,11 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [log, setLog] = useState<LogEntry[]>([]);
   const [demoMode, setDemoMode] = useState(false);
+  // Live victim video streams, keyed by the citizen's userId. Populated by
+  // ontrack on the per-citizen RTCPeerConnection. We use a state setter so
+  // the TacticalPanel re-renders the <video> when a stream arrives.
+  const [streams, setStreams] = useState<Map<string, MediaStream>>(new Map());
+  const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const socketRef = useRef<Socket | null>(null);
   const demoSeq = useRef(0);
 
@@ -149,7 +154,50 @@ export default function App() {
       if (inc) addLog('cancel', `${inc.victimName} cancelled alert`);
     });
 
+    // ── WebRTC: receive a citizen's video feed once we've acked ────────────
+    s.on('webrtc:offer', async ({ userId, sdp }: { userId: string; sdp: RTCSessionDescriptionInit }) => {
+      // One peer connection per citizen. If we already have one (re-ack), tear down.
+      peersRef.current.get(userId)?.close();
+      const pc = new RTCPeerConnection({
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+      });
+      peersRef.current.set(userId, pc);
+
+      pc.ontrack = (e) => {
+        const stream = e.streams[0];
+        if (!stream) return;
+        setStreams((prev) => {
+          if (prev.get(userId) === stream) return prev;
+          const next = new Map(prev);
+          next.set(userId, stream);
+          return next;
+        });
+      };
+      pc.onicecandidate = (e) => {
+        if (e.candidate) {
+          s.emit('webrtc:ice', { userId, candidate: e.candidate.toJSON() });
+        }
+      };
+
+      await pc.setRemoteDescription(sdp);
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      s.emit('webrtc:answer', { userId, sdp: answer });
+    });
+
+    s.on('webrtc:ice', async ({ userId, candidate }: { userId: string; candidate: RTCIceCandidateInit }) => {
+      const pc = peersRef.current.get(userId);
+      if (!pc) return;
+      try {
+        await pc.addIceCandidate(candidate);
+      } catch {
+        // benign — late candidates
+      }
+    });
+
     return () => {
+      peersRef.current.forEach((pc) => pc.close());
+      peersRef.current.clear();
       s.disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -224,7 +272,9 @@ export default function App() {
   }
 
   function ackIncident(inc: Incident) {
-    const distance = 200 + Math.floor(Math.random() * 400);
+    // 800m–2km spawn so the responder pip has a visibly long route to traverse
+    // when it animates toward the victim. Real device GPS replaces this later.
+    const distance = 800 + Math.floor(Math.random() * 1200);
     if (inc.id.startsWith('demo-')) {
       const responder = {
         id: 'demo-responder',
@@ -264,6 +314,7 @@ export default function App() {
         <TacticalPanel
           incident={selected}
           onAck={ackIncident}
+          streams={streams}
           onRouteResolved={(incidentId, responderId, info) => {
             // Only push ETAs for responders we're playing as. Demo incidents
             // stay local; real incidents emit through the socket so the
@@ -558,10 +609,12 @@ function IncidentCard({
 function TacticalPanel({
   incident,
   onAck,
+  streams,
   onRouteResolved,
 }: {
   incident: Incident | null;
   onAck: (i: Incident) => void;
+  streams: Map<string, MediaStream>;
   onRouteResolved?: (
     incidentId: string,
     responderId: string,
@@ -677,6 +730,8 @@ function TacticalPanel({
 
       <TacticalMap incident={incident} routes={routes} />
 
+      <LiveVideoFeed stream={streams.get(incident.userId) || null} />
+
       <ResponderRoster incident={incident} responded={responded} routes={routes} />
 
       <EscalationTimeline incident={incident} />
@@ -743,6 +798,50 @@ function hashBearing(id: string) {
   return Math.abs(h % 360);
 }
 
+// Haversine distance between two [lat, lng] points in metres.
+function haversineMeters(a: [number, number], b: [number, number]): number {
+  const R = 6378137;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b[0] - a[0]);
+  const dLng = toRad(b[1] - a[1]);
+  const lat1 = toRad(a[0]);
+  const lat2 = toRad(b[0]);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+// Linearly interpolate a position along a polyline at fraction t ∈ [0, 1].
+// Segments are weighted by their real-world length so movement looks natural.
+function pointAlongPath(
+  coords: [number, number][],
+  t: number
+): [number, number] {
+  if (coords.length === 0) return [0, 0];
+  if (t <= 0) return coords[0];
+  if (t >= 1) return coords[coords.length - 1];
+  const segLens: number[] = [];
+  let total = 0;
+  for (let i = 1; i < coords.length; i++) {
+    const d = haversineMeters(coords[i - 1], coords[i]);
+    segLens.push(d);
+    total += d;
+  }
+  const target = t * total;
+  let acc = 0;
+  for (let i = 0; i < segLens.length; i++) {
+    if (acc + segLens[i] >= target) {
+      const segT = segLens[i] === 0 ? 0 : (target - acc) / segLens[i];
+      const [lat1, lng1] = coords[i];
+      const [lat2, lng2] = coords[i + 1];
+      return [lat1 + (lat2 - lat1) * segT, lng1 + (lng2 - lng1) * segT];
+    }
+    acc += segLens[i];
+  }
+  return coords[coords.length - 1];
+}
+
 type RouteInfo = {
   coords: [number, number][];
   distanceMeters: number;
@@ -792,6 +891,7 @@ function TacticalMap({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const layersRef = useRef<L.Layer[]>([]);
+  const animationsRef = useRef<number[]>([]);
   const currentRunRef = useRef(0);
 
   // Create the map exactly once when the host div mounts.
@@ -822,9 +922,11 @@ function TacticalMap({
     const map = mapRef.current;
     if (!map) return;
 
-    // Clear previous overlays.
+    // Clear previous overlays + in-flight animations.
     layersRef.current.forEach((l) => map.removeLayer(l));
     layersRef.current = [];
+    animationsRef.current.forEach((id) => cancelAnimationFrame(id));
+    animationsRef.current = [];
 
     // Ensure size + center are correct BEFORE we add layers, so each
     // layer's projection is computed against the right pixel origin.
@@ -862,13 +964,21 @@ function TacticalMap({
     currentRunRef.current += 1;
 
     incident.responders.forEach((r) => {
+      const route = routes.get(r.id);
       const bearing = hashBearing(r.id);
-      const pos = offsetFrom({ lat, lng }, Math.min(r.distance, 1800), bearing);
-      const m = L.marker(pos, { icon: RESPONDER_ICON }).addTo(map);
+      const fallbackPos = offsetFrom(
+        { lat, lng },
+        Math.min(r.distance, 1800),
+        bearing
+      );
+      // Pip starts at the route's true start (snapped to road) if we have it,
+      // otherwise at the hashed bearing offset so it shows up immediately.
+      const startPos: [number, number] = route?.coords?.length
+        ? route.coords[0]
+        : fallbackPos;
+      const m = L.marker(startPos, { icon: RESPONDER_ICON }).addTo(map);
       layersRef.current.push(m);
 
-      // Draw the road-network route if we already have it from the parent.
-      const route = routes.get(r.id);
       if (route?.coords?.length) {
         const outline = L.polyline(route.coords, {
           color: '#fbbf24',
@@ -886,6 +996,21 @@ function TacticalMap({
           lineJoin: 'round',
         }).addTo(map);
         layersRef.current.push(outline, core);
+
+        // Animate the pip along the route. Real OSRM ETAs can be minutes;
+        // cap demo travel time at 30s so the movement is visible in a pitch.
+        const durationMs = Math.min(route.durationSeconds * 1000, 30_000);
+        const startTime = performance.now();
+        const tick = () => {
+          const t = Math.min((performance.now() - startTime) / durationMs, 1);
+          m.setLatLng(pointAlongPath(route.coords, t) as L.LatLngTuple);
+          if (t < 1) {
+            const id = requestAnimationFrame(tick);
+            animationsRef.current.push(id);
+          }
+        };
+        const id = requestAnimationFrame(tick);
+        animationsRef.current.push(id);
       }
     });
   }, [lat, lng, incident.tier, incident.responders, incident.id, routes]);
@@ -925,6 +1050,70 @@ function TacticalMap({
             );
           })}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function LiveVideoFeed({ stream }: { stream: MediaStream | null }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    if (videoRef.current && stream && videoRef.current.srcObject !== stream) {
+      videoRef.current.srcObject = stream;
+    }
+  }, [stream]);
+
+  return (
+    <div className="border-t border-zinc-800/60 px-10 py-6">
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">
+          Live video feed
+        </p>
+        <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-zinc-500">
+          {stream ? (
+            <>
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500/60" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-500" />
+              </span>
+              Streaming · victim cam + mic
+            </>
+          ) : (
+            'Awaiting victim feed…'
+          )}
+        </div>
+      </div>
+
+      <div className="mt-4 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/40">
+        {stream ? (
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className="aspect-video w-full bg-zinc-950 object-cover"
+          />
+        ) : (
+          <div className="grid aspect-video w-full place-items-center bg-zinc-900/40 text-center">
+            <div>
+              <div
+                className="mx-auto h-8 w-8 rounded-full border border-zinc-700"
+                style={{
+                  background:
+                    'conic-gradient(from 0deg, transparent 0%, rgba(255,255,255,0.2) 50%, transparent 100%)',
+                  animation: 'spin 2s linear infinite',
+                }}
+              />
+              <p className="mt-3 text-xs text-zinc-500">
+                Waiting for victim's camera feed
+              </p>
+              <p className="mt-1 text-[10px] text-zinc-600">
+                Stream begins once you click "I'm responding" — the victim
+                must also have Video enabled.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

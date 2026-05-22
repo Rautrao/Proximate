@@ -75,7 +75,12 @@ io.on('connection', (socket) => {
   if (socket.data.role === 'responder') {
     socket.join('responders');
     console.log(`[socket] responder connected name=${socket.data.responderName}`);
-    socket.emit('responder:snapshot', [...incidents.values()]);
+    // Newest first — matches the socket-event prepend ordering on the
+    // dashboard side, so auto-select consistently lands on a new incident.
+    socket.emit(
+      'responder:snapshot',
+      [...incidents.values()].sort((a, b) => b.startedAt - a.startedAt)
+    );
 
     socket.on('responder:ack', ({ incidentId, distance = 280 }) => {
       const inc = incidents.get(incidentId);
@@ -110,6 +115,21 @@ io.on('connection', (socket) => {
         routeDurationSeconds,
       });
       console.log(`[ETA] responder ${responderId} → ${routeDistanceMeters}m / ${routeDurationSeconds}s`);
+    });
+
+    // WebRTC signaling: dashboard side. The dashboard knows the citizen's
+    // userId from the offer payload — we just relay back to their user room.
+    socket.on('webrtc:answer', ({ userId, sdp }) => {
+      io.to(`user:${userId}`).emit('webrtc:answer', {
+        responderId: socket.id,
+        sdp,
+      });
+    });
+    socket.on('webrtc:ice', ({ userId, candidate }) => {
+      io.to(`user:${userId}`).emit('webrtc:ice', {
+        responderId: socket.id,
+        candidate,
+      });
     });
     return;
   }
@@ -162,6 +182,28 @@ io.on('connection', (socket) => {
       io.to('responders').emit('incident:cancelled', { id: incident.id });
     }
     console.log(`[SOS] cancelled userId=${id}`);
+  });
+
+  // WebRTC signaling: citizen side. The citizen doesn't know the server's
+  // incident ID, so we derive the active incident from this socket's userId.
+  function activeIncidentForCitizen() {
+    return [...incidents.values()].find(
+      (i) => i.userId === uid && i.status === 'active'
+    );
+  }
+  socket.on('webrtc:offer', ({ sdp, responderId }) => {
+    const inc = activeIncidentForCitizen();
+    if (!inc) return;
+    const payload = { incidentId: inc.id, userId: uid, sdp };
+    if (responderId) io.to(responderId).emit('webrtc:offer', payload);
+    else io.to('responders').emit('webrtc:offer', payload);
+  });
+  socket.on('webrtc:ice', ({ candidate, responderId }) => {
+    const inc = activeIncidentForCitizen();
+    if (!inc) return;
+    const payload = { incidentId: inc.id, userId: uid, candidate };
+    if (responderId) io.to(responderId).emit('webrtc:ice', payload);
+    else io.to('responders').emit('webrtc:ice', payload);
   });
 
   socket.on('disconnect', () => console.log(`[socket] disconnected userId=${uid}`));

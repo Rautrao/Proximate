@@ -1,11 +1,12 @@
 import { useEffect } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { SOSButton } from '@/components/SOSButton';
 import { useShakeTrigger } from '@/hooks/useShakeTrigger';
 import { useSOSEngine } from '@/hooks/useSOSEngine';
 import { useAuthStore } from '@/store/auth';
+import { usePreferencesStore } from '@/store/preferences';
 import { requestLocationPermission } from '@/services/location';
 import { connectSocket } from '@/services/socket';
 import { registerFCMToken } from '@/services/api';
@@ -13,6 +14,8 @@ import { registerFCMToken } from '@/services/api';
 export default function HomeScreen() {
   const { triggerSOS, status } = useSOSEngine();
   const user = useAuthStore((s) => s.user);
+  const videoEnabled = usePreferencesStore((s) => s.videoEnabled);
+  const setVideoEnabled = usePreferencesStore((s) => s.setVideoEnabled);
 
   // Shake triggers SOS only when the app is idle
   useShakeTrigger(triggerSOS, status === 'idle');
@@ -20,7 +23,7 @@ export default function HomeScreen() {
   useEffect(() => {
     if (!user?.token) return;
     requestLocationPermission();
-    const socket = connectSocket(user.token);
+    connectSocket(user.token);
 
     // Tell the server our FCM push token (stored on the device by expo-notifications).
     // This enables push alerts when the app is backgrounded.
@@ -28,7 +31,11 @@ export default function HomeScreen() {
     const fcmToken: string | null = null; // TODO: await Notifications.getExpoPushTokenAsync()
     if (fcmToken) registerFCMToken(user.id, user.token, fcmToken);
 
-    return () => { socket.disconnect(); };
+    // Intentionally NOT disconnecting on unmount: the socket needs to survive
+    // navigation to /sos-active. The escalateTier flow awaits GPS permission
+    // before emitting — if we tear down the socket here, the await lets home
+    // unmount first and the emit silently drops. The socket disconnects when
+    // the user explicitly signs out (see Settings → handleLogout).
   }, [user]);
 
   return (
@@ -59,16 +66,29 @@ export default function HomeScreen() {
           <Text style={styles.hint}>Hold button or shake phone to trigger SOS</Text>
         </View>
 
-        {/* Feature pills */}
+        {/* Feature pills — Video stream is a real toggle (privacy control) */}
         <View style={styles.pills}>
           <View style={styles.pill}>
             <Ionicons name="navigate" size={13} color="#6B7280" />
             <Text style={styles.pillText}>Live GPS</Text>
           </View>
-          <View style={styles.pill}>
-            <Ionicons name="videocam-outline" size={13} color="#6B7280" />
-            <Text style={styles.pillText}>Video stream</Text>
-          </View>
+          <Pressable
+            onPress={() => setVideoEnabled(!videoEnabled)}
+            style={({ pressed }) => [
+              styles.pill,
+              videoEnabled && styles.pillActive,
+              pressed && styles.pillPressed,
+            ]}
+          >
+            <Ionicons
+              name={videoEnabled ? 'videocam' : 'videocam-off-outline'}
+              size={13}
+              color={videoEnabled ? '#22C55E' : '#6B7280'}
+            />
+            <Text style={[styles.pillText, videoEnabled && styles.pillTextActive]}>
+              {videoEnabled ? 'Video on' : 'Video off'}
+            </Text>
+          </Pressable>
           <View style={styles.pill}>
             <Ionicons name="people-outline" size={13} color="#6B7280" />
             <Text style={styles.pillText}>500m radius</Text>
@@ -148,5 +168,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#374151',
   },
+  pillActive: {
+    backgroundColor: '#052e16',
+    borderColor: '#166534',
+  },
+  pillPressed: { opacity: 0.7 },
   pillText: { color: '#6B7280', fontSize: 11 },
+  pillTextActive: { color: '#22C55E', fontWeight: '600' },
 });

@@ -51,7 +51,15 @@ export function useSOSEngine() {
       };
       try {
         if (await requestLocationPermission()) {
-          location = await getCurrentLocation();
+          // Cap the GPS fix at 1.5s. If the device is slow to lock on (or
+          // there's no GPS source at all — e.g. browser without an explicit
+          // location), we still fire the SOS with the fallback coordinate.
+          location = await Promise.race([
+            getCurrentLocation(),
+            new Promise<typeof location>((_, reject) =>
+              setTimeout(() => reject(new Error('gps timeout')), 1500)
+            ),
+          ]);
         }
       } catch {
         // Fall through with the fallback coordinate.
