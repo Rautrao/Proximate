@@ -15,7 +15,12 @@ import {
   type LiveStreamHandle,
 } from '@/services/webrtc';
 
-type VideoStatus = 'off' | 'starting' | 'streaming' | LiveStreamError;
+type VideoStatus =
+  | 'off'
+  | 'starting'
+  | 'streaming'      // real camera
+  | 'simulated'      // mock fallback (real camera unavailable)
+  | LiveStreamError;
 import { CANCEL_GRACE_SECONDS, ESCALATION_TIERS } from '@/constants/escalation';
 
 export default function SOSActiveScreen() {
@@ -52,7 +57,12 @@ export default function SOSActiveScreen() {
       }
       if (result.ok) {
         streamRef.current = result.handle;
-        setVideoStatus('streaming');
+        setVideoStatus(result.source === 'mock' ? 'simulated' : 'streaming');
+        if (result.source === 'mock') {
+          console.warn(
+            '[webrtc] real camera unavailable (' + result.fallbackReason + ') — using simulated feed'
+          );
+        }
       } else {
         setVideoStatus(result.error);
         console.warn('[webrtc] camera capture failed:', result.error, result.message);
@@ -205,6 +215,15 @@ function VideoStatusPill({
           border: '#166534',
           label: 'Live video streaming to responders',
           retryable: false,
+        };
+      case 'simulated':
+        return {
+          icon: 'videocam' as const,
+          color: '#FCD34D',
+          bg: '#1F1502',
+          border: '#854D0E',
+          label: 'Simulated feed streaming (real camera unavailable) · tap to retry',
+          retryable: true,
         };
       case 'starting':
         return {
