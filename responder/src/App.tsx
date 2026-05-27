@@ -664,19 +664,35 @@ function TacticalPanel({
   // Hooks must run unconditionally — call before any early return.
   const elapsed = useElapsed(incident?.startedAt ?? Date.now());
   const [routes, setRoutes] = useState<Map<string, RouteInfo>>(new Map());
+  const [policeStation, setPoliceStation] = useState<PoliceStation | null>(null);
+
+  // Look up the actual nearest police station once per incident location.
+  useEffect(() => {
+    if (!incident) return;
+    let cancelled = false;
+    findNearestPoliceStation(incident.location.lat, incident.location.lng).then((s) => {
+      if (!cancelled) setPoliceStation(s);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [incident?.id, incident?.location.lat, incident?.location.lng]);
 
   // Fetch OSRM routes whenever a new responder joins. Cache prevents repeats.
+  // Responder origin = nearest real police station if we have one, else
+  // fall back to a hashed bearing offset.
   useEffect(() => {
     if (!incident) return;
     incident.responders.forEach((r) => {
-      const cacheKey = `${incident.id}:${r.id}`;
+      const cacheKey = `${incident.id}:${r.id}:${policeStation?.name ?? 'fallback'}`;
       if (routes.has(r.id)) return;
-      const bearing = hashBearing(r.id);
-      const pos = offsetFrom(
-        incident.location,
-        Math.min(r.distance, 1800),
-        bearing
-      );
+      const pos: [number, number] = policeStation
+        ? [policeStation.lat, policeStation.lng]
+        : offsetFrom(
+            incident.location,
+            Math.min(r.distance, 1800),
+            hashBearing(r.id)
+          );
       fetchRoute(pos, [incident.location.lat, incident.location.lng], cacheKey).then(
         (info) => {
           if (!info) return;
@@ -686,7 +702,6 @@ function TacticalPanel({
             next.set(r.id, info);
             return next;
           });
-          // Relay the ETA back to the citizen via the parent's socket.
           onRouteResolved?.(incident.id, r.id, {
             distanceMeters: info.distanceMeters,
             durationSeconds: info.durationSeconds,
@@ -694,7 +709,7 @@ function TacticalPanel({
         }
       );
     });
-  }, [incident, routes, onRouteResolved]);
+  }, [incident, routes, onRouteResolved, policeStation]);
 
   // When switching to a different incident, drop the old routes.
   useEffect(() => {
@@ -774,7 +789,12 @@ function TacticalPanel({
 
       <LiveVideoFeed stream={streams.get(incident.userId) || null} />
 
-      <ResponderRoster incident={incident} responded={responded} routes={routes} />
+      <ResponderRoster
+        incident={incident}
+        responded={responded}
+        routes={routes}
+        policeStation={policeStation}
+      />
 
       <EscalationTimeline incident={incident} />
     </section>
@@ -890,8 +910,65 @@ type RouteInfo = {
   durationSeconds: number;
 };
 
+type PoliceStation = {
+  lat: number;
+  lng: number;
+  name: string;
+  distanceMeters: number;
+};
+
 // In-memory cache so we don't hammer the public OSRM demo server on re-renders.
 const routeCache = new Map<string, RouteInfo>();
+const policeCache = new Map<string, PoliceStation | null>();
+
+// Find the nearest OpenStreetMap police station to the given coords via
+// Overpass API. Cached per coarse grid square so we don't re-query.
+// Aligns with Assignment 1's "Send GPS & Details to Police" + "nearest
+// police station" from the original problem statement.
+async function findNearestPoliceStation(
+  lat: number,
+  lng: number
+): Promise<PoliceStation | null> {
+  const key = `${lat.toFixed(2)},${lng.toFixed(2)}`;
+  if (policeCache.has(key)) return policeCache.get(key) ?? null;
+  try {
+    const query = `[out:json][timeout:10];node[amenity=police](around:5000,${lat},${lng});out 5;`;
+    const res = await fetch(
+      `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`
+    );
+    if (!res.ok) {
+      policeCache.set(key, null);
+      return null;
+    }
+    const data = await res.json();
+    const elements = (data?.elements as Array<{ lat: number; lon: number; tags?: { name?: string } }>) ?? [];
+    if (elements.length === 0) {
+      policeCache.set(key, null);
+      return null;
+    }
+    // Pick the closest by straight-line distance
+    let best: PoliceStation | null = null;
+    for (const el of elements) {
+      const d = Math.hypot(
+        (el.lat - lat) * 111_000,
+        (el.lon - lng) * 111_000 * Math.cos((lat * Math.PI) / 180)
+      );
+      if (!best || d < best.distanceMeters) {
+        best = {
+          lat: el.lat,
+          lng: el.lon,
+          name: el.tags?.name ?? 'Police Station',
+          distanceMeters: d,
+        };
+      }
+    }
+    policeCache.set(key, best);
+    return best;
+  } catch {
+    policeCache.set(key, null);
+    return null;
+  }
+}
 
 // OSRM public demo: free, no API key. Returns a GeoJSON LineString of the
 // actual road network path from start to end plus distance + duration.
@@ -1219,16 +1296,26 @@ function ResponderRoster({
   incident,
   responded,
   routes,
+  policeStation,
 }: {
   incident: Incident;
   responded: boolean;
   routes: Map<string, RouteInfo>;
+  policeStation: PoliceStation | null;
 }) {
   return (
     <div className="border-t border-zinc-800/60 px-10 py-6">
-      <p className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">
-        Responders en route · {incident.responders.length}
-      </p>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">
+          Responders en route · {incident.responders.length}
+        </p>
+        {policeStation && (
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-zinc-500">
+            Dispatching from · <span className="text-zinc-300">{policeStation.name}</span>
+            <span className="text-zinc-600"> · {formatDistance(policeStation.distanceMeters)}</span>
+          </p>
+        )}
+      </div>
       {!responded ? (
         <p className="mt-3 max-w-md text-sm leading-relaxed text-zinc-500">
           No responder has acknowledged yet. Tap <span className="text-zinc-300">I'm responding</span> to claim this incident — the victim will see your ETA in real time.
