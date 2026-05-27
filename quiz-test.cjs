@@ -34,20 +34,23 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   await wait(1000);
   await page.screenshot({ path: SHOT('03-question-1') });
 
-  // Correct option text per question (from constants/quiz.ts, English)
+  // Correct option text per question (from constants/quiz.ts, English).
+  // 8 scenario-based questions, must get >= 6 right to pass.
   const correctOptions = [
-    'Alerting nearby people during a personal safety emergency',
-    'When I genuinely feel unsafe or am in danger',
-    'Nearby Proximate users, my emergency contacts, and the nearest police station',
-    'Assess the situation safely',
-    'To prevent the platform being misused by potential attackers',
+    'Call the police, then approach only if it is safe',
+    'every Proximate account must belong to one verified person',
+    'View it only',
+    'You waste responders\' time and may face legal action',
+    'observe safely from a distance',
+    'when you have direct evidence the alert is not genuine',
+    'In a panic situation the user may not be able to look at the screen',
+    'Only your first name, live location',
   ];
 
-  for (let q = 0; q < 5; q++) {
-    // Click the correct option by its (partial) text
+  for (let q = 0; q < correctOptions.length; q++) {
     await page.getByText(correctOptions[q], { exact: false }).first().click();
     await wait(400);
-    const btnName = q === 4 ? 'Submit' : 'Next';
+    const btnName = q === correctOptions.length - 1 ? 'Submit' : 'Next';
     await page.getByText(btnName, { exact: true }).first().click();
     await wait(900);
   }
