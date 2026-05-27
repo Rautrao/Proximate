@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { SOSButton } from '@/components/SOSButton';
 import { useShakeTrigger } from '@/hooks/useShakeTrigger';
+import { useVolumeButtonTrigger } from '@/hooks/useVolumeButtonTrigger';
 import { useSOSEngine } from '@/hooks/useSOSEngine';
 import { useAuthStore } from '@/store/auth';
 import { usePreferencesStore } from '@/store/preferences';
@@ -19,6 +20,9 @@ export default function HomeScreen() {
 
   // Shake triggers SOS only when the app is idle
   useShakeTrigger(triggerSOS, status === 'idle');
+  // Triple-press volume key (SPACE on web demo) — matches Assignment 2's
+  // stated "pressing volume/power buttons" primary trigger mechanism
+  useVolumeButtonTrigger(triggerSOS, status === 'idle');
 
   useEffect(() => {
     if (!user?.token) return;
@@ -63,7 +67,7 @@ export default function HomeScreen() {
         {/* Trigger hint */}
         <View style={styles.hintRow}>
           <Ionicons name="phone-portrait-outline" size={14} color="#4B5563" />
-          <Text style={styles.hint}>Hold button or shake phone to trigger SOS</Text>
+          <Text style={styles.hint}>Hold button · shake phone · triple-press volume key</Text>
         </View>
 
         {/* Feature pills — Video stream is a real toggle (privacy control) */}
