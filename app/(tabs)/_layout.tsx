@@ -11,7 +11,7 @@ function TabIcon({
   name: IoniconName;
   focused: boolean;
 }) {
-  return <Ionicons name={name} size={24} color={focused ? '#DC2626' : '#4B5563'} />;
+  return <Ionicons name={name} size={22} color={focused ? '#fbbf24' : '#52525b'} />;
 }
 
 export default function TabLayout() {
@@ -26,12 +26,13 @@ export default function TabLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: '#111827',
-          borderTopColor: '#1F2937',
+          backgroundColor: '#09090b',
+          borderTopColor: '#27272a',
+          borderTopWidth: 1,
         },
-        tabBarActiveTintColor: '#DC2626',
-        tabBarInactiveTintColor: '#4B5563',
-        tabBarLabelStyle: { fontSize: 11 },
+        tabBarActiveTintColor: '#fbbf24',
+        tabBarInactiveTintColor: '#52525b',
+        tabBarLabelStyle: { fontSize: 10, letterSpacing: 1.2, fontWeight: '600', textTransform: 'uppercase' },
       }}
     >
       <Tabs.Screen

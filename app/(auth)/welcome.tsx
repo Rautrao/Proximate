@@ -84,6 +84,60 @@ export default function WelcomeScreen() {
           <Text style={styles.trustItem}>VERIFIED RESPONDERS</Text>
         </View>
 
+        {/* Mock phone preview — the interface section, like the marketing site */}
+        <Text style={styles.sectionLabel}>THE INTERFACE</Text>
+        <Text style={styles.sectionTitle}>A single tap.{'\n'}A trusted network.</Text>
+        <Text style={styles.sectionBody}>
+          Proximate is built around restraint — quiet by default, decisive
+          when needed. The interface stays out of the way until the moment
+          it doesn't.
+        </Text>
+
+        <View style={styles.phoneWrap}>
+          <View style={styles.phone}>
+            <View style={styles.phoneNotch} />
+            <Text style={styles.phoneEyebrow}>PROXIMATE</Text>
+            <Text style={styles.phoneStatus}>Standby</Text>
+
+            <View style={styles.phoneRingZone}>
+              <View style={styles.phoneRing} />
+              <View style={styles.phonePulse} />
+              <View style={styles.phoneCore}>
+                <Ionicons name="pulse" size={20} color="#fafafa" />
+                <Text style={styles.phoneCoreLabel}>PROTECTED</Text>
+              </View>
+            </View>
+
+            <View style={styles.phoneTrigger}>
+              <Text style={styles.phoneTriggerText}>Trigger alert</Text>
+            </View>
+
+            <View style={styles.phoneMap}>
+              <View style={styles.phoneMapPin} />
+            </View>
+
+            <Text style={styles.phoneListLabel}>TRUSTED CIRCLE</Text>
+            {[
+              { initial: 'A', name: 'Aanya R.', rel: 'Mother' },
+              { initial: 'V', name: 'Vikram S.', rel: 'Father' },
+              { initial: 'P', name: 'Priya N.', rel: 'Sister' },
+            ].map((c) => (
+              <View key={c.name} style={styles.phoneListRow}>
+                <View style={styles.phoneListAvatar}>
+                  <Text style={styles.phoneListAvatarText}>{c.initial}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.phoneListName}>{c.name}</Text>
+                  <Text style={styles.phoneListRel}>{c.rel}</Text>
+                </View>
+                <Ionicons name="call-outline" size={13} color="#52525b" />
+              </View>
+            ))}
+
+            <View style={styles.phoneHomeBar} />
+          </View>
+        </View>
+
         {/* Features */}
         <Text style={styles.sectionLabel}>CORE CAPABILITY</Text>
         <Text style={styles.sectionTitle}>
@@ -231,6 +285,147 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
     marginBottom: 32,
     maxWidth: 400,
+  },
+
+  sectionBody: {
+    color: '#a1a1aa',
+    fontSize: 14,
+    lineHeight: 22,
+    marginBottom: 32,
+    marginTop: -16,
+    maxWidth: 420,
+  },
+
+  /* Mock phone preview */
+  phoneWrap: {
+    alignItems: 'center',
+    marginBottom: 72,
+  },
+  phone: {
+    width: 280,
+    backgroundColor: '#09090b',
+    borderRadius: 36,
+    borderWidth: 1,
+    borderColor: '#27272a',
+    padding: 18,
+    paddingTop: 24,
+    paddingBottom: 14,
+  },
+  phoneNotch: {
+    alignSelf: 'center',
+    width: 60,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#27272a',
+    marginBottom: 18,
+  },
+  phoneEyebrow: {
+    color: '#52525b',
+    fontSize: 9,
+    letterSpacing: 2,
+    fontWeight: '600',
+  },
+  phoneStatus: {
+    color: '#fafafa',
+    fontSize: 20,
+    fontWeight: '600',
+    marginTop: 4,
+    marginBottom: 24,
+  },
+  phoneRingZone: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 130,
+    position: 'relative',
+  },
+  phoneRing: {
+    position: 'absolute',
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    borderWidth: 1,
+    borderColor: '#fafafa',
+    opacity: 0.6,
+  },
+  phonePulse: {
+    position: 'absolute',
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: 'rgba(250, 250, 250, 0.04)',
+  },
+  phoneCore: { alignItems: 'center' },
+  phoneCoreLabel: {
+    color: '#52525b',
+    fontSize: 9,
+    letterSpacing: 2,
+    fontWeight: '600',
+    marginTop: 6,
+  },
+  phoneTrigger: {
+    alignSelf: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 7,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#27272a',
+    marginTop: 12,
+  },
+  phoneTriggerText: {
+    color: '#a1a1aa',
+    fontSize: 11,
+    letterSpacing: 0.5,
+  },
+  phoneMap: {
+    marginTop: 20,
+    height: 80,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#27272a',
+    backgroundColor: '#18181b',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  phoneMapPin: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#fafafa',
+  },
+  phoneListLabel: {
+    color: '#52525b',
+    fontSize: 9,
+    letterSpacing: 2,
+    fontWeight: '600',
+    marginTop: 20,
+    marginBottom: 12,
+  },
+  phoneListRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 7,
+  },
+  phoneListAvatar: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: '#27272a',
+    backgroundColor: '#18181b',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  phoneListAvatarText: { color: '#a1a1aa', fontSize: 11, fontWeight: '600' },
+  phoneListName: { color: '#fafafa', fontSize: 12 },
+  phoneListRel: { color: '#52525b', fontSize: 10, marginTop: 1 },
+  phoneHomeBar: {
+    alignSelf: 'center',
+    width: 80,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: '#27272a',
+    marginTop: 14,
   },
 
   features: { gap: 1, marginBottom: 64 },

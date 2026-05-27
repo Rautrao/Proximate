@@ -322,7 +322,7 @@ function VideoStatusPill({
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#0D0101' },
+  safe: { flex: 1, backgroundColor: '#0a0506' },
   container: {
     flex: 1,
     alignItems: 'center',

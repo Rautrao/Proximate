@@ -95,12 +95,12 @@ export default function SettingsScreen() {
           <Row
             icon="notifications-outline"
             label="Push notifications"
-            right={<Switch value={true} onValueChange={() => {}} thumbColor="#DC2626" trackColor={{ true: '#7F1D1D', false: '#374151' }} />}
+            right={<Switch value={true} onValueChange={() => {}} thumbColor="#fbbf24" trackColor={{ true: '#854D0E', false: '#27272a' }} />}
           />
           <Row
             icon="mail-outline"
             label="Email alerts"
-            right={<Switch value={false} onValueChange={() => {}} thumbColor="#DC2626" trackColor={{ true: '#7F1D1D', false: '#374151' }} />}
+            right={<Switch value={false} onValueChange={() => {}} thumbColor="#fbbf24" trackColor={{ true: '#854D0E', false: '#27272a' }} />}
           />
         </View>
 
@@ -125,38 +125,38 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#111827' },
+  safe: { flex: 1, backgroundColor: '#09090b' },
   container: { paddingHorizontal: 20, paddingBottom: 40 },
-  title: { color: '#F9FAFB', fontSize: 22, fontWeight: '800', paddingTop: 20, marginBottom: 20 },
+  title: { color: '#fafafa', fontSize: 22, fontWeight: '700', paddingTop: 20, marginBottom: 24, letterSpacing: -0.3 },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    backgroundColor: '#1F2937',
-    borderRadius: 14,
+    backgroundColor: '#18181b',
+    borderRadius: 16,
     padding: 16,
-    marginBottom: 28,
+    marginBottom: 32,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: '#27272a',
   },
   avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#DC2626',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#fbbf24',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: { color: '#fff', fontSize: 20, fontWeight: '700' },
-  userName: { color: '#F9FAFB', fontSize: 16, fontWeight: '700' },
-  userPhone: { color: '#6B7280', fontSize: 13, marginTop: 2 },
-  sectionLabel: { color: '#6B7280', fontSize: 12, fontWeight: '600', letterSpacing: 1, marginBottom: 8, textTransform: 'uppercase' },
+  avatarText: { color: '#0a0a0a', fontSize: 17, fontWeight: '700' },
+  userName: { color: '#fafafa', fontSize: 15, fontWeight: '600' },
+  userPhone: { color: '#71717a', fontSize: 12, marginTop: 2 },
+  sectionLabel: { color: '#52525b', fontSize: 10, fontWeight: '600', letterSpacing: 2, marginBottom: 10, textTransform: 'uppercase' },
   section: {
-    backgroundColor: '#1F2937',
-    borderRadius: 14,
+    backgroundColor: '#18181b',
+    borderRadius: 16,
     marginBottom: 28,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: '#27272a',
     overflow: 'hidden',
   },
   row: {
@@ -165,24 +165,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     gap: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#374151',
+    borderBottomWidth: 1,
+    borderBottomColor: '#27272a',
   },
-  rowPressed: { backgroundColor: '#374151' },
-  rowIcon: { width: 24, alignItems: 'center' },
-  rowLabel: { flex: 1, color: '#F9FAFB', fontSize: 15 },
-  rowValue: { color: '#6B7280', fontSize: 13 },
+  rowPressed: { backgroundColor: '#27272a' },
+  rowIcon: { width: 22, alignItems: 'center' },
+  rowLabel: { flex: 1, color: '#fafafa', fontSize: 14 },
+  rowValue: { color: '#71717a', fontSize: 12 },
   logoutBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#1F2937',
-    borderRadius: 12,
-    paddingVertical: 16,
+    backgroundColor: '#18181b',
+    borderRadius: 999,
+    paddingVertical: 14,
     borderWidth: 1,
-    borderColor: '#374151',
+    borderColor: '#27272a',
   },
-  logoutBtnPressed: { backgroundColor: '#374151' },
-  logoutText: { color: '#F87171', fontSize: 15, fontWeight: '600' },
+  logoutBtnPressed: { backgroundColor: '#27272a' },
+  logoutText: { color: '#f87171', fontSize: 14, fontWeight: '600' },
 });
