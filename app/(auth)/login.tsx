@@ -80,7 +80,7 @@ export default function LoginScreen() {
 
           <View style={styles.footer}>
             <Text style={styles.footerText}>New here? </Text>
-            <Link href="/(auth)/register" style={styles.link}>
+            <Link href="/(auth)/quiz" style={styles.link}>
               Create account
             </Link>
           </View>

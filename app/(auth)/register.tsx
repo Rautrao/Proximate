@@ -10,18 +10,25 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { Link } from 'expo-router';
+import { Link, Redirect } from 'expo-router';
 import { registerUser } from '@/services/api';
 import { useAuthStore } from '@/store/auth';
+import { useOnboardingStore } from '@/store/onboarding';
 
 export default function RegisterScreen() {
+  // All hooks must run unconditionally — call before any early return.
   const setUser = useAuthStore((s) => s.setUser);
+  const quizPassed = useOnboardingStore((s) => s.quizPassed);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Gate registration behind the quiz — first-time users must verify they
+  // understand how Proximate is used before they can create an account.
+  if (!quizPassed) return <Redirect href="/(auth)/quiz" />;
 
   const handleRegister = async () => {
     setError('');
