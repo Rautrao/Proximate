@@ -97,6 +97,45 @@ io.on('connection', (socket) => {
       console.log(`[ACK] ${responder.name} → incident ${incidentId}`);
     });
 
+    // Community verification (Level 3 ISM element). Responders in the network
+    // can vouch for a threat OR flag a likely false alarm. Two false-alarm
+    // votes with no acks pauses the incident pending review — this is what
+    // your Assignment 1 calls "Community Verification (False Alarm Filter)".
+    socket.on('responder:verify', ({ incidentId }) => {
+      const inc = incidents.get(incidentId);
+      if (!inc) return;
+      inc.verifiedBy = inc.verifiedBy || [];
+      if (!inc.verifiedBy.includes(socket.id)) {
+        inc.verifiedBy.push(socket.id);
+        io.to('responders').emit('incident:update', inc);
+        io.to(`user:${inc.userId}`).emit('sos:verification_update', {
+          incidentId,
+          verifications: inc.verifiedBy.length,
+          falseAlarmVotes: (inc.flaggedBy || []).length,
+        });
+        console.log(`[VERIFY] ${socket.data.responderName} → ${incidentId} (${inc.verifiedBy.length} total)`);
+      }
+    });
+    socket.on('responder:flag_false_alarm', ({ incidentId }) => {
+      const inc = incidents.get(incidentId);
+      if (!inc) return;
+      inc.flaggedBy = inc.flaggedBy || [];
+      if (!inc.flaggedBy.includes(socket.id)) {
+        inc.flaggedBy.push(socket.id);
+        // 2+ false-alarm votes AND no responders → pause escalation
+        if (inc.flaggedBy.length >= 2 && (inc.responders || []).length === 0) {
+          inc.pendingVerification = true;
+        }
+        io.to('responders').emit('incident:update', inc);
+        io.to(`user:${inc.userId}`).emit('sos:verification_update', {
+          incidentId,
+          verifications: (inc.verifiedBy || []).length,
+          falseAlarmVotes: inc.flaggedBy.length,
+        });
+        console.log(`[FALSE-ALARM] ${socket.data.responderName} → ${incidentId} (${inc.flaggedBy.length} total)`);
+      }
+    });
+
     // Follow-up event sent by the dashboard once it resolves a real road-network
     // route via OSRM. We relay it straight to the victim's socket room so the
     // citizen UI can show "Officer Mehta · ETA 4 min" instead of just a name.

@@ -32,6 +32,10 @@ type Incident = {
   endedAt?: number;
   escalationLog: { tier: number; radius: number; at: number }[];
   responders: { id: string; name: string; distance: number; acknowledgedAt: number }[];
+  // Community verification (ISM Level 3 — false-alarm filter)
+  verifiedBy?: string[];
+  flaggedBy?: string[];
+  pendingVerification?: boolean;
 };
 
 type LogEntry = {
@@ -293,6 +297,36 @@ export default function App() {
     socketRef.current?.emit('responder:ack', { incidentId: inc.id, distance });
   }
 
+  function verifyIncident(inc: Incident) {
+    if (inc.id.startsWith('demo-')) {
+      setIncidents((p) =>
+        p.map((i) =>
+          i.id === inc.id
+            ? { ...i, verifiedBy: [...(i.verifiedBy || []), 'demo-responder'] }
+            : i
+        )
+      );
+      addLog('ack', `${RESPONDER_NAME} verified ${inc.victimName}'s alert`);
+      return;
+    }
+    socketRef.current?.emit('responder:verify', { incidentId: inc.id });
+  }
+
+  function flagFalseAlarm(inc: Incident) {
+    if (inc.id.startsWith('demo-')) {
+      setIncidents((p) =>
+        p.map((i) =>
+          i.id === inc.id
+            ? { ...i, flaggedBy: [...(i.flaggedBy || []), 'demo-responder'] }
+            : i
+        )
+      );
+      addLog('cancel', `${RESPONDER_NAME} flagged ${inc.victimName} as possible false alarm`);
+      return;
+    }
+    socketRef.current?.emit('responder:flag_false_alarm', { incidentId: inc.id });
+  }
+
   const tier3Active = active.some((i) => i.tier >= 3);
 
   return (
@@ -314,6 +348,8 @@ export default function App() {
         <TacticalPanel
           incident={selected}
           onAck={ackIncident}
+          onVerify={verifyIncident}
+          onFlag={flagFalseAlarm}
           streams={streams}
           onRouteResolved={(incidentId, responderId, info) => {
             // Only push ETAs for responders we're playing as. Demo incidents
@@ -609,11 +645,15 @@ function IncidentCard({
 function TacticalPanel({
   incident,
   onAck,
+  onVerify,
+  onFlag,
   streams,
   onRouteResolved,
 }: {
   incident: Incident | null;
   onAck: (i: Incident) => void;
+  onVerify: (i: Incident) => void;
+  onFlag: (i: Incident) => void;
   streams: Map<string, MediaStream>;
   onRouteResolved?: (
     incidentId: string,
@@ -727,6 +767,8 @@ function TacticalPanel({
           )}
         </div>
       </div>
+
+      <VerificationBar incident={incident} onVerify={onVerify} onFlag={onFlag} />
 
       <TacticalMap incident={incident} routes={routes} />
 
@@ -1049,6 +1091,60 @@ function TacticalMap({
               </div>
             );
           })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VerificationBar({
+  incident,
+  onVerify,
+  onFlag,
+}: {
+  incident: Incident;
+  onVerify: (i: Incident) => void;
+  onFlag: (i: Incident) => void;
+}) {
+  const verifies = (incident.verifiedBy || []).length;
+  const flags = (incident.flaggedBy || []).length;
+  const paused = !!incident.pendingVerification;
+  return (
+    <div className="border-t border-zinc-800/60 px-10 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">
+            Community verification
+          </p>
+          <p className="mt-1 text-[11px] text-zinc-500">
+            {paused ? (
+              <span className="text-red-300">
+                ⚠ Escalation paused — {flags} responders flagged this as a possible false alarm
+              </span>
+            ) : (
+              <>
+                <span className="text-emerald-300">{verifies} verified</span>
+                <span className="text-zinc-600"> · </span>
+                <span className="text-amber-300">{flags} flagged false alarm</span>
+              </>
+            )}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => onVerify(incident)}
+            className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] text-emerald-300 transition hover:bg-emerald-500/20"
+          >
+            <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={1.6} />
+            Verify
+          </button>
+          <button
+            onClick={() => onFlag(incident)}
+            className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] text-amber-300 transition hover:bg-amber-500/20"
+          >
+            <XCircle className="h-3.5 w-3.5" strokeWidth={1.6} />
+            False alarm
+          </button>
         </div>
       </div>
     </div>
