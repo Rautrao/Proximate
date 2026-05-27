@@ -3,5 +3,7 @@ import { useAuthStore } from '@/store/auth';
 
 export default function Index() {
   const user = useAuthStore((s) => s.user);
-  return <Redirect href={user ? '/(tabs)' : '/(auth)/login'} />;
+  // Unauthenticated users see the in-app landing page (Welcome) first.
+  // Returning users with a token go straight to the home tabs.
+  return <Redirect href={user ? '/(tabs)' : '/(auth)/welcome'} />;
 }
