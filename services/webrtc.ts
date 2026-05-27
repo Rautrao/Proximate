@@ -136,8 +136,10 @@ export type LiveStreamError =
   | 'device_busy'      // another app (Windows Camera, Zoom, OBS) has it
   | 'unknown';
 
+export type LiveStreamSource = 'camera' | 'mock';
+
 export type LiveStreamResult =
-  | { ok: true; handle: LiveStreamHandle }
+  | { ok: true; handle: LiveStreamHandle; source: LiveStreamSource; fallbackReason?: LiveStreamError }
   | { ok: false; error: LiveStreamError; message?: string };
 
 export async function startLiveStream({
@@ -157,6 +159,9 @@ export async function startLiveStream({
   }
 
   let stream: MediaStream;
+  let source: LiveStreamSource = 'camera';
+  let fallbackReason: LiveStreamError | undefined;
+  let mockStop: (() => void) | undefined;
   try {
     stream = await navigator.mediaDevices.getUserMedia({
       video: { width: 640, height: 360 },
@@ -164,20 +169,30 @@ export async function startLiveStream({
     });
   } catch (e) {
     const err = e as DOMException;
+    // Classify the failure so the UI can still explain WHY we're on mock.
     if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-      return { ok: false, error: 'permission_denied', message: err.message };
-    }
-    if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-      return { ok: false, error: 'no_device', message: err.message };
-    }
-    if (
+      fallbackReason = 'permission_denied';
+    } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+      fallbackReason = 'no_device';
+    } else if (
       err.name === 'NotReadableError' ||
       err.name === 'TrackStartError' ||
       err.name === 'AbortError'
     ) {
-      return { ok: false, error: 'device_busy', message: err.message };
+      fallbackReason = 'device_busy';
+    } else {
+      fallbackReason = 'unknown';
     }
-    return { ok: false, error: 'unknown', message: err.message };
+    // Demo never fails: drop to a synthetic feed so the dashboard always
+    // sees a live stream. The pill on sos-active labels it as simulated.
+    try {
+      const mock = buildMockStream();
+      stream = mock.stream;
+      mockStop = mock.stop;
+      source = 'mock';
+    } catch {
+      return { ok: false, error: fallbackReason, message: err.message };
+    }
   }
 
   const peers = new Map<string, PerResponder>();
@@ -249,7 +264,13 @@ export async function startLiveStream({
     peers.forEach((slot) => slot.pc.close());
     peers.clear();
     stream.getTracks().forEach((t) => t.stop());
+    mockStop?.();
   }
 
-  return { ok: true, handle: { stop, attachResponder, removeResponder } };
+  return {
+    ok: true,
+    handle: { stop, attachResponder, removeResponder },
+    source,
+    fallbackReason,
+  };
 }
