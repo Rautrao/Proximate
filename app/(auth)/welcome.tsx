@@ -762,10 +762,10 @@ const styles = StyleSheet.create({
   /* Mock phone */
   phone: {
     width: 300,
-    backgroundColor: '#09090b',
+    backgroundColor: '#131316', // slightly lighter than page so the device
+    // reads as a raised object without needing a hard 1px border that
+    // would render as a long vertical line against the dark background
     borderRadius: 40,
-    borderWidth: 1,
-    borderColor: '#27272a',
     padding: 18,
     paddingTop: 26,
     paddingBottom: 14,
