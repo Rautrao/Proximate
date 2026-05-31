@@ -3,14 +3,12 @@ import { Platform } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
-// Slim, theme-matched scrollbars on web. Injected once at app start so
-// every screen inherits the same chrome.
+// Hide native scrollbars entirely on web (track + thumb). The page still
+// scrolls via wheel / trackpad / touch — this is the same pattern Apple,
+// Instagram, etc. use to avoid a chunky chrome strip overlapping content.
 const WEB_SCROLLBAR_CSS = `
-  ::-webkit-scrollbar { width: 8px; height: 8px; }
-  ::-webkit-scrollbar-track { background: #09090b; }
-  ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 4px; }
-  ::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
-  html { scrollbar-color: #27272a #09090b; scrollbar-width: thin; }
+  ::-webkit-scrollbar { width: 0; height: 0; display: none; }
+  * { scrollbar-width: none; -ms-overflow-style: none; }
   body { background: #09090b; }
 `;
 
