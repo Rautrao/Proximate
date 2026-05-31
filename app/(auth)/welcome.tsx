@@ -1,5 +1,7 @@
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
+  Animated,
+  Easing,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -151,35 +153,9 @@ export default function WelcomeScreen() {
           </View>
         </View>
 
-        {/* Trust strip — infinite-scroll marquee, full-bleed */}
-        <View style={styles.marqueeMask}>
-          {/* Two copies of the items, side by side, animated -50% so the
-              second copy slides into the first copy's slot seamlessly */}
-          <View
-            style={styles.marqueeTrack}
-            {...({ className: 'proximate-marquee' } as object)}
-          >
-            {[0, 1].map((copy) => (
-              <View key={copy} style={styles.marqueeGroup}>
-                {[
-                  'END-TO-END ENCRYPTED',
-                  'SUB-SECOND TRIGGERS',
-                  'PRIVACY BY DESIGN',
-                  'VERIFIED RESPONDERS',
-                  '5 LANGUAGES',
-                  'COMMUNITY VERIFICATION',
-                  'OPENSTREETMAP ROUTING',
-                  'WEBRTC LIVE VIDEO',
-                ].map((t, i) => (
-                  <View key={`${copy}-${i}`} style={styles.marqueeItem}>
-                    <Text style={styles.trustItem}>{t}</Text>
-                    <View style={styles.marqueeDot} />
-                  </View>
-                ))}
-              </View>
-            ))}
-          </View>
-        </View>
+        {/* Trust strip — full-bleed infinite marquee */}
+        <Marquee />
+
 
         {/* THE PROBLEM — 2-col: text left, stat card right */}
         <View style={styles.sectionRow}>
@@ -376,6 +352,65 @@ export default function WelcomeScreen() {
         </View>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+const MARQUEE_ITEMS = [
+  'END-TO-END ENCRYPTED',
+  'SUB-SECOND TRIGGERS',
+  'PRIVACY BY DESIGN',
+  'VERIFIED RESPONDERS',
+  '5 LANGUAGES',
+  'COMMUNITY VERIFICATION',
+  'OPENSTREETMAP ROUTING',
+  'WEBRTC LIVE VIDEO',
+];
+
+function Marquee() {
+  const translateX = useRef(new Animated.Value(0)).current;
+  const [groupWidth, setGroupWidth] = useState(0);
+
+  useEffect(() => {
+    if (groupWidth === 0) return;
+    translateX.setValue(0);
+    const anim = Animated.loop(
+      Animated.timing(translateX, {
+        toValue: -groupWidth,
+        duration: groupWidth * 22, // ~22ms per px → smooth, calm pace
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [groupWidth, translateX]);
+
+  return (
+    <View style={styles.marqueeMask}>
+      <Animated.View style={[styles.marqueeTrack, { transform: [{ translateX }] }]}>
+        {/* First copy — measured so we know how far to scroll */}
+        <View
+          style={styles.marqueeGroup}
+          onLayout={(e) => setGroupWidth(e.nativeEvent.layout.width)}
+        >
+          {MARQUEE_ITEMS.map((t, i) => (
+            <View key={`a-${i}`} style={styles.marqueeItem}>
+              <Text style={styles.trustItem}>{t}</Text>
+              <View style={styles.marqueeDot} />
+            </View>
+          ))}
+        </View>
+        {/* Second copy — slides into place as the first scrolls off */}
+        <View style={styles.marqueeGroup}>
+          {MARQUEE_ITEMS.map((t, i) => (
+            <View key={`b-${i}`} style={styles.marqueeItem}>
+              <Text style={styles.trustItem}>{t}</Text>
+              <View style={styles.marqueeDot} />
+            </View>
+          ))}
+        </View>
+      </Animated.View>
+    </View>
   );
 }
 
