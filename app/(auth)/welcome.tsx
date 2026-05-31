@@ -100,6 +100,8 @@ export default function WelcomeScreen() {
         ref={scrollRef}
         contentContainerStyle={styles.scroll}
         stickyHeaderIndices={[0]}
+        showsVerticalScrollIndicator={false}
+        showsHorizontalScrollIndicator={false}
       >
         {/* Sticky nav */}
         <View style={styles.navWrap}>
@@ -145,7 +147,6 @@ export default function WelcomeScreen() {
 
           {/* Hero preview: layered mock phone with subtle glow */}
           <View style={styles.heroPreview}>
-            <View style={styles.heroPreviewGlow} />
             <MockPhone />
           </View>
         </View>
@@ -266,7 +267,6 @@ export default function WelcomeScreen() {
           </View>
           <View style={styles.sectionCol}>
             <View style={styles.heroPreview}>
-              <View style={styles.heroPreviewGlow} />
               <MockPhone />
             </View>
           </View>
@@ -459,17 +459,7 @@ const styles = StyleSheet.create({
     flexBasis: 320,
     flexGrow: 1,
     alignItems: 'center',
-    position: 'relative',
     paddingVertical: 12,
-  },
-  heroPreviewGlow: {
-    position: 'absolute',
-    width: 360,
-    height: 360,
-    borderRadius: 180,
-    backgroundColor: 'rgba(251, 191, 36, 0.05)',
-    top: '50%',
-    marginTop: -180,
   },
 
   eyebrow: {
