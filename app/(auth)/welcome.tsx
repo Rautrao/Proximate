@@ -15,55 +15,76 @@ const FEATURES = [
     icon: 'location-outline' as const,
     title: 'Proximity-Based Alerts',
     text: 'Intelligent geofencing alerts nearby Proximate users within 500m of you — and adaptively expands the radius if no one responds.',
+    accent: '500m → 1km → 2km',
   },
   {
     icon: 'phone-portrait-outline' as const,
     title: 'Hold · Shake · Volume',
     text: 'Three discreet triggers, designed for the moments you can\'t look at your screen or unlock your phone.',
+    accent: '3 trigger methods',
   },
   {
     icon: 'people-outline' as const,
     title: 'Community + Police',
     text: 'Trusted contacts, nearby verified users, and the nearest police station — all alerted in parallel, not sequentially.',
+    accent: 'parallel dispatch',
   },
   {
     icon: 'videocam-outline' as const,
     title: 'Live Video & Forensic Trail',
     text: 'Optional live camera stream to responders. Every incident produces an encrypted, timestamped audit log for evidence.',
+    accent: 'WebRTC + audit log',
   },
   {
     icon: 'shield-checkmark-outline' as const,
     title: 'Community Verification',
     text: 'A misuse-resistant network. Verified users vouch for genuine threats; false-alarm flags suppress bad actors before escalation.',
+    accent: 'false-alarm filter',
   },
   {
     icon: 'language-outline' as const,
     title: 'Built for India',
     text: 'Onboarding in 5 languages, real OpenStreetMap police-station lookup, and 1.5s GPS timeouts that survive weak rural networks.',
+    accent: '5 languages',
   },
 ];
 
 const STEPS = [
   {
     n: '01',
+    icon: 'flash-outline' as const,
     title: 'Trigger in any state',
-    text: 'Long-press the SOS button, shake the phone three times, or triple-press the volume key. Designed for panic — the user does not have to look at the screen.',
+    text: 'Long-press the SOS button, shake the phone three times, or triple-press the volume key. Designed for panic.',
   },
   {
     n: '02',
+    icon: 'radio-outline' as const,
     title: 'Alert the proximity network',
-    text: 'Within seconds, Proximate users within 500m of you get a notification. Your trusted contacts get SMS. The nearest police station receives your live location.',
+    text: 'Within seconds, nearby Proximate users, your trusted contacts, and the nearest police station get notified.',
   },
   {
     n: '03',
+    icon: 'expand-outline' as const,
     title: 'Escalate if response is slow',
-    text: 'After 60 seconds the radius doubles to 1km. After another 60, it becomes 2km with police priority. The system never stops trying.',
+    text: 'After 60 seconds the radius doubles to 1km. After another 60, it becomes 2km with police priority.',
   },
   {
     n: '04',
+    icon: 'navigate-outline' as const,
     title: 'Reassurance in real time',
-    text: 'The moment a responder acknowledges, you see their name, distance, and ETA on your phone. As they move toward you, the ETA updates live.',
+    text: 'The moment a responder acknowledges, you see their name, distance, and ETA. As they move, the ETA updates live.',
   },
+];
+
+const STACK = [
+  { label: 'CLIENT', value: 'React Native · Expo · same code on iOS, Android, web' },
+  { label: 'REAL-TIME', value: 'Socket.IO over WebSocket · sub-second broadcast' },
+  { label: 'VIDEO', value: 'WebRTC peer connections with public STUN' },
+  { label: 'LOCATION', value: 'expo-location · 1.5s timeout · fallback coordinate' },
+  { label: 'MAP', value: 'Leaflet · OpenStreetMap CARTO Dark · no Google dependency' },
+  { label: 'ROUTING', value: 'OSRM road-network ETA + driving distance' },
+  { label: 'POLICE LOOKUP', value: 'Overpass API querying OSM amenity=police' },
+  { label: 'BACKEND', value: 'Node.js · Express · Socket.IO · JWT auth' },
 ];
 
 export default function WelcomeScreen() {
@@ -105,163 +126,198 @@ export default function WelcomeScreen() {
           </View>
         </View>
 
-        {/* Hero */}
+        {/* HERO — 2-column: text left, phone preview right */}
         <View style={styles.hero}>
-          <View style={styles.eyebrow}>
-            <View style={styles.dot} />
-            <Text style={styles.eyebrowText}>PERSONAL SAFETY, RECONSIDERED</Text>
+          <View style={styles.heroText}>
+            <View style={styles.eyebrow}>
+              <View style={styles.dot} />
+              <Text style={styles.eyebrowText}>PERSONAL SAFETY, RECONSIDERED</Text>
+            </View>
+            <Text style={styles.heroTitle}>Safety.</Text>
+            <Text style={[styles.heroTitle, styles.heroTitleMuted]}>Redefined.</Text>
+            <Text style={styles.heroSubtitle}>
+              Advanced personal security technology. Proximity alerts, haptic
+              triggers, and automated emergency response — engineered for the
+              moments that matter.
+            </Text>
+            <Text style={styles.heroScrollHint}>↓  Scroll to see how it works</Text>
           </View>
-          <Text style={styles.heroTitle}>Safety.</Text>
-          <Text style={[styles.heroTitle, styles.heroTitleMuted]}>Redefined.</Text>
-          <Text style={styles.heroSubtitle}>
-            Advanced personal security technology. Proximity alerts, haptic
-            triggers, and automated emergency response — engineered for the
-            moments that matter.
-          </Text>
-          <View style={styles.heroMeta}>
-            <Text style={styles.heroMetaItem}>↓  Scroll to learn how it works</Text>
+
+          {/* Hero preview: layered mock phone with subtle glow */}
+          <View style={styles.heroPreview}>
+            <View style={styles.heroPreviewGlow} />
+            <MockPhone />
           </View>
         </View>
 
         {/* Trust strip */}
         <View style={styles.trustStrip}>
-          <Text style={styles.trustItem}>END-TO-END ENCRYPTED</Text>
-          <Text style={styles.trustItem}>SUB-SECOND TRIGGERS</Text>
-          <Text style={styles.trustItem}>PRIVACY BY DESIGN</Text>
-          <Text style={styles.trustItem}>VERIFIED RESPONDERS</Text>
+          {['END-TO-END ENCRYPTED', 'SUB-SECOND TRIGGERS', 'PRIVACY BY DESIGN', 'VERIFIED RESPONDERS', '5 LANGUAGES'].map((t) => (
+            <Text key={t} style={styles.trustItem}>{t}</Text>
+          ))}
         </View>
 
-        {/* The problem */}
-        <Section eyebrow="THE PROBLEM" title="Conventional emergency response is too slow." width={520}>
-          <Text style={styles.body}>
-            In India, the average emergency-call-to-on-scene-response time is
-            measured in tens of minutes — not seconds. Most attackers act in
-            under two minutes. By the time conventional response arrives,
-            the moment that mattered is over.
-          </Text>
-          <Text style={[styles.body, { marginTop: 14 }]}>
-            Proximate inverts the model: instead of waiting for one centralized
-            authority to dispatch, it alerts everyone *physically closest* to
-            the victim, in parallel — community first, police in lockstep.
-          </Text>
-        </Section>
+        {/* THE PROBLEM — 2-col: text left, stat card right */}
+        <View style={styles.sectionRow}>
+          <View style={styles.sectionCol}>
+            <Text style={styles.sectionEyebrow}>THE PROBLEM</Text>
+            <Text style={styles.sectionTitle}>Conventional emergency response is too slow.</Text>
+            <Text style={styles.body}>
+              In India, the average emergency-call-to-on-scene-response time is
+              measured in tens of minutes — not seconds. Most attackers act in
+              under two minutes. By the time conventional response arrives,
+              the moment that mattered is over.
+            </Text>
+            <Text style={[styles.body, { marginTop: 16 }]}>
+              Proximate inverts the model: instead of waiting for one
+              centralized authority to dispatch, it alerts everyone
+              <Text style={{ color: '#fafafa', fontWeight: '600' }}> physically closest</Text>
+              {' '}to the victim, in parallel — community first, police in lockstep.
+            </Text>
+          </View>
 
-        {/* How it works */}
-        <Section eyebrow="HOW IT WORKS" title="Four phases. Every one of them runs in real time.">
-          <View style={styles.steps}>
-            {STEPS.map((s) => (
-              <View key={s.n} style={styles.step}>
-                <Text style={styles.stepNumber}>{s.n}</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.stepTitle}>{s.title}</Text>
-                  <Text style={styles.stepText}>{s.text}</Text>
+          <View style={styles.sectionCol}>
+            <View style={styles.statCard}>
+              <Text style={styles.statEyebrow}>RESPONSE-TIME GAP</Text>
+              <View style={styles.statRow}>
+                <View style={styles.statBlock}>
+                  <Text style={styles.statNumber}>10+ min</Text>
+                  <Text style={styles.statLabel}>Conventional response</Text>
                 </View>
+                <View style={styles.statDivider} />
+                <View style={styles.statBlock}>
+                  <Text style={[styles.statNumber, { color: '#fbbf24' }]}>&lt;2 min</Text>
+                  <Text style={styles.statLabel}>Attacker window</Text>
+                </View>
+              </View>
+              <View style={styles.statBarTrack}>
+                <View style={styles.statBarFill} />
+              </View>
+              <Text style={styles.statBarCaption}>
+                The gap Proximate closes — with the people already nearby.
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* HOW IT WORKS — 2×2 grid */}
+        <View style={styles.section}>
+          <Text style={styles.sectionEyebrow}>HOW IT WORKS</Text>
+          <Text style={styles.sectionTitle}>Four phases. Every one of them runs in real time.</Text>
+          <View style={styles.stepGrid}>
+            {STEPS.map((s) => (
+              <View key={s.n} style={styles.stepCard}>
+                <View style={styles.stepHead}>
+                  <Text style={styles.stepNumber}>{s.n}</Text>
+                  <View style={styles.stepIconWrap}>
+                    <Ionicons name={s.icon} size={18} color="#fbbf24" />
+                  </View>
+                </View>
+                <Text style={styles.stepTitle}>{s.title}</Text>
+                <Text style={styles.stepText}>{s.text}</Text>
               </View>
             ))}
           </View>
-        </Section>
+        </View>
 
-        {/* Core features */}
-        <Section eyebrow="CORE CAPABILITY" title="Engineered for the seconds that decide everything.">
+        {/* CORE CAPABILITY — feature grid */}
+        <View style={styles.section}>
+          <Text style={styles.sectionEyebrow}>CORE CAPABILITY</Text>
+          <Text style={styles.sectionTitle}>Engineered for the seconds that decide everything.</Text>
           <View style={styles.features}>
             {FEATURES.map((f) => (
               <View key={f.title} style={styles.featureCard}>
-                <View style={styles.featureIconWrap}>
-                  <Ionicons name={f.icon} size={18} color="#fafafa" />
+                <View style={styles.featureHead}>
+                  <View style={styles.featureIconWrap}>
+                    <Ionicons name={f.icon} size={18} color="#fafafa" />
+                  </View>
+                  <Text style={styles.featureAccent}>{f.accent}</Text>
                 </View>
                 <Text style={styles.featureTitle}>{f.title}</Text>
                 <Text style={styles.featureText}>{f.text}</Text>
               </View>
             ))}
           </View>
-        </Section>
+        </View>
 
-        {/* The interface (mock phone) */}
-        <Section eyebrow="THE INTERFACE" title={'A single tap.\nA trusted network.'}>
-          <Text style={styles.body}>
-            Quiet by default, decisive when needed. The interface stays out
-            of the way until the moment it doesn\'t.
-          </Text>
-          <View style={styles.phoneWrap}>
-            <View style={styles.phone}>
-              <View style={styles.phoneNotch} />
-              <Text style={styles.phoneEyebrow}>PROXIMATE</Text>
-              <Text style={styles.phoneStatus}>Standby</Text>
-              <View style={styles.phoneRingZone}>
-                <View style={styles.phoneRing} />
-                <View style={styles.phonePulse} />
-                <View style={styles.phoneCore}>
-                  <Ionicons name="pulse" size={18} color="#fafafa" />
-                  <Text style={styles.phoneCoreLabel}>PROTECTED</Text>
-                </View>
-              </View>
-              <View style={styles.phoneTrigger}>
-                <Text style={styles.phoneTriggerText}>Trigger alert</Text>
-              </View>
-              <View style={styles.phoneMap}>
-                <View style={styles.phoneMapPin} />
-              </View>
-              <Text style={styles.phoneListLabel}>TRUSTED CIRCLE</Text>
+        {/* THE INTERFACE — 2-col: copy left, second mock phone right */}
+        <View style={styles.sectionRow}>
+          <View style={styles.sectionCol}>
+            <Text style={styles.sectionEyebrow}>THE INTERFACE</Text>
+            <Text style={styles.sectionTitle}>A single tap.{'\n'}A trusted network.</Text>
+            <Text style={styles.body}>
+              Quiet by default, decisive when needed. The interface stays out
+              of the way until the moment it doesn\'t. Three triggers,
+              one trusted circle, and a live link to the responder network.
+            </Text>
+            <View style={styles.bulletRow}>
               {[
-                { initial: 'A', name: 'Aanya R.', rel: 'Mother' },
-                { initial: 'V', name: 'Vikram S.', rel: 'Father' },
-                { initial: 'P', name: 'Priya N.', rel: 'Sister' },
-              ].map((c) => (
-                <View key={c.name} style={styles.phoneListRow}>
-                  <View style={styles.phoneListAvatar}>
-                    <Text style={styles.phoneListAvatarText}>{c.initial}</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.phoneListName}>{c.name}</Text>
-                    <Text style={styles.phoneListRel}>{c.rel}</Text>
-                  </View>
-                  <Ionicons name="call-outline" size={12} color="#52525b" />
+                'Live status ring shows protection state at a glance',
+                'Encrypted end-to-end location sharing on demand',
+                'Trusted contacts see verified, accurate context',
+                'Cancellation requires biometric — to defeat coercion',
+              ].map((b) => (
+                <View key={b} style={styles.bullet}>
+                  <View style={styles.bulletDot} />
+                  <Text style={styles.bulletText}>{b}</Text>
                 </View>
               ))}
-              <View style={styles.phoneHomeBar} />
             </View>
           </View>
-        </Section>
+          <View style={styles.sectionCol}>
+            <View style={styles.heroPreview}>
+              <View style={styles.heroPreviewGlow} />
+              <MockPhone />
+            </View>
+          </View>
+        </View>
 
-        {/* Technology */}
-        <Section eyebrow="TECHNOLOGY" title="The stack, made plain.">
+        {/* TECHNOLOGY — 4-col compact stack grid */}
+        <View style={styles.section}>
+          <Text style={styles.sectionEyebrow}>TECHNOLOGY</Text>
+          <Text style={styles.sectionTitle}>The stack, made plain.</Text>
+          <Text style={[styles.body, { marginBottom: 28 }]}>
+            Built on open standards — no proprietary lock-in. Every layer
+            chosen to keep the system fast, auditable, and operational
+            without depending on Google's infrastructure.
+          </Text>
           <View style={styles.techGrid}>
-            {[
-              { label: 'CLIENT', value: 'React Native (Expo) — same codebase across iOS, Android, and web' },
-              { label: 'REAL-TIME', value: 'Socket.IO over WebSocket — sub-second incident broadcast' },
-              { label: 'VIDEO', value: 'WebRTC peer connections with STUN — citizen → responder' },
-              { label: 'LOCATION', value: 'expo-location with hard 1.5s timeout and fallback coordinate' },
-              { label: 'MAP', value: 'Leaflet + OpenStreetMap (CARTO Dark) — no Google dependency' },
-              { label: 'ROUTING', value: 'OSRM public demo for road-network ETA + driving distance' },
-              { label: 'POLICE LOOKUP', value: 'Overpass API querying OSM amenity=police within 5km radius' },
-              { label: 'BACKEND', value: 'Node.js + Express + Socket.IO — JWT auth, in-memory mock for demo' },
-            ].map((t) => (
+            {STACK.map((t) => (
               <View key={t.label} style={styles.techCard}>
                 <Text style={styles.techLabel}>{t.label}</Text>
                 <Text style={styles.techValue}>{t.value}</Text>
               </View>
             ))}
           </View>
-        </Section>
+        </View>
 
-        {/* Built for India */}
-        <Section eyebrow="LOCALISATION" title="Built for India.">
+        {/* LOCALISATION — chips */}
+        <View style={styles.section}>
+          <Text style={styles.sectionEyebrow}>LOCALISATION</Text>
+          <Text style={styles.sectionTitle}>Built for India.</Text>
           <View style={styles.langRow}>
-            {['English', 'हिन्दी', 'தமிழ்', 'తెలుగు', 'বাংলা'].map((l) => (
-              <View key={l} style={styles.langChip}>
-                <Text style={styles.langChipText}>{l}</Text>
+            {[
+              { native: 'English', label: 'EN' },
+              { native: 'हिन्दी', label: 'HI' },
+              { native: 'தமிழ்', label: 'TA' },
+              { native: 'తెలుగు', label: 'TE' },
+              { native: 'বাংলা', label: 'BN' },
+            ].map((l) => (
+              <View key={l.label} style={styles.langCard}>
+                <Text style={styles.langCardNative}>{l.native}</Text>
+                <Text style={styles.langCardLabel}>{l.label}</Text>
               </View>
             ))}
           </View>
-          <Text style={[styles.body, { marginTop: 20 }]}>
-            Onboarding in five Indian languages with parallel translations. Map
-            tiles, police-station data, and routing — all sourced from
-            OpenStreetMap, so we never depend on Google's infrastructure
-            (or pricing) to function in rural areas.
+          <Text style={[styles.body, { marginTop: 24 }]}>
+            Onboarding and the safety quiz translated parallel across all five
+            languages. Map tiles, police-station data, and routing — all
+            sourced from OpenStreetMap, so the system functions in rural
+            areas where Google services are slow or unavailable.
           </Text>
-        </Section>
+        </View>
 
-        {/* Final CTA */}
+        {/* FINAL CTA */}
         <View style={styles.finalCta}>
           <Text style={styles.finalEyebrow}>READY?</Text>
           <Text style={styles.finalTitle}>Be among{'\n'}the first protected.</Text>
@@ -270,10 +326,7 @@ export default function WelcomeScreen() {
             Proximate only for genuine safety scenarios. Misuse is monitored
             and may be reported under applicable law.
           </Text>
-          <Pressable
-            onPress={goToQuiz}
-            style={({ pressed }) => [styles.finalCtaBtn, pressed && { opacity: 0.85 }]}
-          >
+          <Pressable onPress={goToQuiz} style={({ pressed }) => [styles.finalCtaBtn, pressed && { opacity: 0.85 }]}>
             <Text style={styles.finalCtaText}>Create your account</Text>
             <Ionicons name="arrow-forward" size={18} color="#0a0a0a" />
           </Pressable>
@@ -288,7 +341,7 @@ export default function WelcomeScreen() {
           <View style={styles.footerRow}>
             <View style={styles.navBrand}>
               <Ionicons name="shield-checkmark" size={14} color="#71717a" />
-              <Text style={styles.footerBrand}>PROXIMATE — © 2026</Text>
+              <Text style={styles.footerBrand}>PROXIMATE  —  © 2026</Text>
             </View>
             <View style={styles.footerLinks}>
               <Text style={styles.footerLink}>Privacy</Text>
@@ -303,22 +356,48 @@ export default function WelcomeScreen() {
   );
 }
 
-function Section({
-  eyebrow,
-  title,
-  children,
-  width,
-}: {
-  eyebrow: string;
-  title: string;
-  children: React.ReactNode;
-  width?: number;
-}) {
+function MockPhone() {
   return (
-    <View style={styles.section}>
-      <Text style={styles.sectionEyebrow}>{eyebrow}</Text>
-      <Text style={[styles.sectionTitle, width ? { maxWidth: width } : null]}>{title}</Text>
-      <View style={{ marginTop: 8 }}>{children}</View>
+    <View style={styles.phone}>
+      <View style={styles.phoneNotch} />
+      <Text style={styles.phoneEyebrow}>PROXIMATE</Text>
+      <Text style={styles.phoneStatus}>Standby</Text>
+      <View style={styles.phoneRingZone}>
+        <View style={styles.phoneRing} />
+        <View style={styles.phonePulse} />
+        <View style={styles.phoneCore}>
+          <Ionicons name="pulse" size={18} color="#fafafa" />
+          <Text style={styles.phoneCoreLabel}>PROTECTED</Text>
+        </View>
+      </View>
+      <View style={styles.phoneTrigger}>
+        <Text style={styles.phoneTriggerText}>Trigger alert</Text>
+      </View>
+      <View style={styles.phoneMap}>
+        <View style={styles.phoneMapGrid} />
+        <View style={styles.phoneMapPin} />
+      </View>
+      <View style={styles.phoneListHead}>
+        <Text style={styles.phoneListLabel}>TRUSTED CIRCLE</Text>
+        <Text style={styles.phoneListCount}>3 active</Text>
+      </View>
+      {[
+        { initial: 'A', name: 'Aanya R.', rel: 'Mother' },
+        { initial: 'V', name: 'Vikram S.', rel: 'Father' },
+        { initial: 'P', name: 'Priya N.', rel: 'Sister' },
+      ].map((c) => (
+        <View key={c.name} style={styles.phoneListRow}>
+          <View style={styles.phoneListAvatar}>
+            <Text style={styles.phoneListAvatarText}>{c.initial}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.phoneListName}>{c.name}</Text>
+            <Text style={styles.phoneListRel}>{c.rel}</Text>
+          </View>
+          <Ionicons name="call-outline" size={12} color="#52525b" />
+        </View>
+      ))}
+      <View style={styles.phoneHomeBar} />
     </View>
   );
 }
@@ -337,26 +416,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
+    paddingHorizontal: 32,
+    paddingVertical: 14,
     maxWidth: 1280,
     width: '100%',
     alignSelf: 'center',
     gap: 16,
   },
   navBrand: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  navBrandText: {
-    color: '#fafafa',
-    fontSize: 12,
-    letterSpacing: 2.5,
-    fontWeight: '600',
-  },
-  navLinks: {
-    flexDirection: 'row',
-    gap: 28,
-    flex: 1,
-    justifyContent: 'center',
-  },
+  navBrandText: { color: '#fafafa', fontSize: 12, letterSpacing: 2.5, fontWeight: '600' },
+  navLinks: { flexDirection: 'row', gap: 28, flex: 1, justifyContent: 'center' },
   navLink: { color: '#a1a1aa', fontSize: 13 },
   navCtas: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   navLoginBtn: { paddingHorizontal: 12, paddingVertical: 8 },
@@ -372,15 +441,37 @@ const styles = StyleSheet.create({
   },
   navCtaText: { color: '#0a0a0a', fontSize: 13, fontWeight: '600' },
 
-  /* Hero */
+  /* HERO (2-col) */
   hero: {
-    paddingHorizontal: 24,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 48,
+    paddingHorizontal: 32,
     paddingTop: 80,
-    paddingBottom: 56,
+    paddingBottom: 80,
     maxWidth: 1280,
     width: '100%',
     alignSelf: 'center',
+    alignItems: 'center',
   },
+  heroText: { flexBasis: 540, flexGrow: 1 },
+  heroPreview: {
+    flexBasis: 320,
+    flexGrow: 1,
+    alignItems: 'center',
+    position: 'relative',
+    paddingVertical: 12,
+  },
+  heroPreviewGlow: {
+    position: 'absolute',
+    width: 360,
+    height: 360,
+    borderRadius: 180,
+    backgroundColor: 'rgba(251, 191, 36, 0.05)',
+    top: '50%',
+    marginTop: -180,
+  },
+
   eyebrow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -398,9 +489,9 @@ const styles = StyleSheet.create({
   eyebrowText: { color: '#a1a1aa', fontSize: 9, letterSpacing: 2, fontWeight: '600' },
   heroTitle: {
     color: '#fafafa',
-    fontSize: 80,
+    fontSize: 72,
     fontWeight: '700',
-    lineHeight: 82,
+    lineHeight: 74,
     letterSpacing: -3,
   },
   heroTitleMuted: { color: '#52525b' },
@@ -408,18 +499,17 @@ const styles = StyleSheet.create({
     color: '#a1a1aa',
     fontSize: 16,
     lineHeight: 28,
-    marginTop: 32,
-    maxWidth: 520,
+    marginTop: 28,
+    maxWidth: 480,
   },
-  heroMeta: { marginTop: 48 },
-  heroMetaItem: { color: '#52525b', fontSize: 12, letterSpacing: 1 },
+  heroScrollHint: { color: '#52525b', fontSize: 12, letterSpacing: 1, marginTop: 36 },
 
   /* Trust strip */
   trustStrip: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 28,
-    paddingHorizontal: 24,
+    paddingHorizontal: 32,
     paddingVertical: 24,
     borderTopWidth: 1,
     borderTopColor: '#27272a',
@@ -429,16 +519,32 @@ const styles = StyleSheet.create({
   },
   trustItem: { color: '#52525b', fontSize: 10, letterSpacing: 2, fontWeight: '600' },
 
-  /* Sections (reusable) */
+  /* Section (single-col) */
   section: {
-    paddingHorizontal: 24,
-    paddingVertical: 64,
+    paddingHorizontal: 32,
+    paddingVertical: 80,
     borderTopWidth: 1,
     borderTopColor: '#27272a',
     maxWidth: 1280,
     width: '100%',
     alignSelf: 'center',
   },
+
+  /* Section row (2-col) */
+  sectionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 56,
+    paddingHorizontal: 32,
+    paddingVertical: 80,
+    borderTopWidth: 1,
+    borderTopColor: '#27272a',
+    maxWidth: 1280,
+    width: '100%',
+    alignSelf: 'center',
+  },
+  sectionCol: { flexBasis: 400, flexGrow: 1, flexShrink: 1 },
+
   sectionEyebrow: {
     color: '#52525b',
     fontSize: 10,
@@ -453,7 +559,7 @@ const styles = StyleSheet.create({
     lineHeight: 42,
     letterSpacing: -1,
     marginBottom: 24,
-    maxWidth: 720,
+    maxWidth: 600,
   },
   body: {
     color: '#a1a1aa',
@@ -462,38 +568,98 @@ const styles = StyleSheet.create({
     maxWidth: 600,
   },
 
-  /* Steps (how it works) */
-  steps: { gap: 12, marginTop: 16 },
-  step: {
-    flexDirection: 'row',
-    gap: 24,
-    paddingVertical: 24,
-    paddingHorizontal: 24,
+  /* Stat card (problem section) */
+  statCard: {
     backgroundColor: '#18181b',
     borderColor: '#27272a',
     borderWidth: 1,
-    borderRadius: 16,
+    borderRadius: 20,
+    padding: 28,
+  },
+  statEyebrow: {
+    color: '#52525b',
+    fontSize: 10,
+    letterSpacing: 2,
+    fontWeight: '600',
+    marginBottom: 24,
+  },
+  statRow: { flexDirection: 'row', alignItems: 'flex-end', marginBottom: 24 },
+  statBlock: { flex: 1 },
+  statDivider: { width: 1, height: 60, backgroundColor: '#27272a', marginHorizontal: 16 },
+  statNumber: { color: '#fafafa', fontSize: 36, fontWeight: '700', letterSpacing: -1 },
+  statLabel: { color: '#71717a', fontSize: 11, marginTop: 6, letterSpacing: 0.5 },
+  statBarTrack: {
+    height: 6,
+    backgroundColor: '#27272a',
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginBottom: 14,
+  },
+  statBarFill: {
+    height: '100%',
+    width: '18%',
+    backgroundColor: '#fbbf24',
+    borderRadius: 3,
+  },
+  statBarCaption: { color: '#71717a', fontSize: 12, lineHeight: 18 },
+
+  /* How it works grid */
+  stepGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+    marginTop: 16,
+  },
+  stepCard: {
+    flexBasis: 360,
+    flexGrow: 1,
+    backgroundColor: '#18181b',
+    borderColor: '#27272a',
+    borderWidth: 1,
+    borderRadius: 20,
+    padding: 28,
+  },
+  stepHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 24,
   },
   stepNumber: {
     color: '#fbbf24',
     fontSize: 13,
     fontWeight: '600',
-    letterSpacing: 1.5,
-    minWidth: 30,
+    letterSpacing: 2,
   },
-  stepTitle: { color: '#fafafa', fontSize: 16, fontWeight: '600', marginBottom: 6 },
-  stepText: { color: '#a1a1aa', fontSize: 13, lineHeight: 21 },
+  stepIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(251, 191, 36, 0.3)',
+    backgroundColor: 'rgba(251, 191, 36, 0.06)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepTitle: { color: '#fafafa', fontSize: 18, fontWeight: '600', marginBottom: 10 },
+  stepText: { color: '#a1a1aa', fontSize: 13, lineHeight: 22 },
 
   /* Features */
-  features: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 16 },
+  features: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginTop: 16 },
   featureCard: {
-    flexBasis: 320,
+    flexBasis: 360,
     flexGrow: 1,
     backgroundColor: '#18181b',
     borderColor: '#27272a',
     borderWidth: 1,
-    padding: 24,
-    borderRadius: 16,
+    padding: 28,
+    borderRadius: 20,
+  },
+  featureHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 24,
   },
   featureIconWrap: {
     width: 38,
@@ -505,19 +671,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  featureTitle: { color: '#fafafa', fontSize: 15, fontWeight: '600', marginTop: 18 },
-  featureText: { color: '#a1a1aa', fontSize: 12, lineHeight: 19, marginTop: 6 },
+  featureAccent: {
+    color: '#fbbf24',
+    fontSize: 10,
+    letterSpacing: 1.5,
+    fontWeight: '600',
+  },
+  featureTitle: { color: '#fafafa', fontSize: 17, fontWeight: '600', marginBottom: 8 },
+  featureText: { color: '#a1a1aa', fontSize: 13, lineHeight: 21 },
 
-  /* Mock phone preview */
-  phoneWrap: { alignItems: 'center', marginTop: 32 },
+  /* Bullets for interface section */
+  bulletRow: { marginTop: 28, gap: 14 },
+  bullet: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  bulletDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#fbbf24',
+    marginTop: 9,
+  },
+  bulletText: { color: '#d4d4d8', fontSize: 14, lineHeight: 22, flex: 1 },
+
+  /* Mock phone */
   phone: {
-    width: 280,
+    width: 300,
     backgroundColor: '#09090b',
-    borderRadius: 36,
+    borderRadius: 40,
     borderWidth: 1,
     borderColor: '#27272a',
     padding: 18,
-    paddingTop: 24,
+    paddingTop: 26,
     paddingBottom: 14,
   },
   phoneNotch: {
@@ -526,25 +709,25 @@ const styles = StyleSheet.create({
     height: 4,
     borderRadius: 2,
     backgroundColor: '#27272a',
-    marginBottom: 18,
+    marginBottom: 20,
   },
   phoneEyebrow: { color: '#52525b', fontSize: 9, letterSpacing: 2, fontWeight: '600' },
-  phoneStatus: { color: '#fafafa', fontSize: 20, fontWeight: '600', marginTop: 4, marginBottom: 24 },
-  phoneRingZone: { alignItems: 'center', justifyContent: 'center', height: 130 },
+  phoneStatus: { color: '#fafafa', fontSize: 22, fontWeight: '600', marginTop: 4, marginBottom: 24 },
+  phoneRingZone: { alignItems: 'center', justifyContent: 'center', height: 140 },
   phoneRing: {
     position: 'absolute',
-    width: 130,
-    height: 130,
-    borderRadius: 65,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
     borderWidth: 1,
     borderColor: '#fafafa',
-    opacity: 0.6,
+    opacity: 0.7,
   },
   phonePulse: {
     position: 'absolute',
-    width: 90,
-    height: 90,
-    borderRadius: 45,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     backgroundColor: 'rgba(250, 250, 250, 0.04)',
   },
   phoneCore: { alignItems: 'center' },
@@ -561,17 +744,30 @@ const styles = StyleSheet.create({
   phoneTriggerText: { color: '#a1a1aa', fontSize: 11, letterSpacing: 0.5 },
   phoneMap: {
     marginTop: 20,
-    height: 80,
+    height: 90,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#27272a',
     backgroundColor: '#18181b',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
-  phoneMapPin: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#fafafa' },
-  phoneListLabel: { color: '#52525b', fontSize: 9, letterSpacing: 2, fontWeight: '600', marginTop: 20, marginBottom: 12 },
-  phoneListRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7 },
+  phoneMapGrid: {
+    position: 'absolute',
+    inset: 0,
+    backgroundColor: 'transparent',
+  },
+  phoneMapPin: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#fafafa' },
+  phoneListHead: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  phoneListLabel: { color: '#52525b', fontSize: 9, letterSpacing: 2, fontWeight: '600' },
+  phoneListCount: { color: '#52525b', fontSize: 9, letterSpacing: 1 },
+  phoneListRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
   phoneListAvatar: {
     width: 26, height: 26, borderRadius: 13, borderWidth: 1,
     borderColor: '#27272a', backgroundColor: '#18181b',
@@ -586,35 +782,41 @@ const styles = StyleSheet.create({
   },
 
   /* Tech grid */
-  techGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 16 },
+  techGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   techCard: {
     flexBasis: 280,
     flexGrow: 1,
     backgroundColor: '#18181b',
     borderColor: '#27272a',
     borderWidth: 1,
-    padding: 18,
-    borderRadius: 14,
+    padding: 20,
+    borderRadius: 16,
   },
-  techLabel: { color: '#52525b', fontSize: 10, letterSpacing: 2, fontWeight: '600', marginBottom: 8 },
+  techLabel: { color: '#fbbf24', fontSize: 10, letterSpacing: 2, fontWeight: '600', marginBottom: 10 },
   techValue: { color: '#fafafa', fontSize: 13, lineHeight: 20 },
 
-  /* Languages */
-  langRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 8 },
-  langChip: {
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    borderRadius: 999,
+  /* Language cards */
+  langRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 12 },
+  langCard: {
+    flexBasis: 180,
+    flexGrow: 1,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: '#27272a',
     backgroundColor: '#18181b',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  langChipText: { color: '#fafafa', fontSize: 15 },
+  langCardNative: { color: '#fafafa', fontSize: 18, fontWeight: '600' },
+  langCardLabel: { color: '#52525b', fontSize: 10, letterSpacing: 1.5, fontWeight: '600' },
 
   /* Final CTA */
   finalCta: {
-    paddingHorizontal: 24,
-    paddingTop: 80,
+    paddingHorizontal: 32,
+    paddingTop: 96,
     paddingBottom: 60,
     alignItems: 'center',
     borderTopWidth: 1,
@@ -623,12 +825,12 @@ const styles = StyleSheet.create({
     width: '100%',
     alignSelf: 'center',
   },
-  finalEyebrow: { color: '#52525b', fontSize: 10, letterSpacing: 2.2, fontWeight: '600', marginBottom: 16 },
+  finalEyebrow: { color: '#52525b', fontSize: 10, letterSpacing: 2.2, fontWeight: '600', marginBottom: 18 },
   finalTitle: {
     color: '#fafafa',
-    fontSize: 56,
+    fontSize: 64,
     fontWeight: '700',
-    lineHeight: 60,
+    lineHeight: 68,
     letterSpacing: -2,
     textAlign: 'center',
   },
@@ -636,10 +838,10 @@ const styles = StyleSheet.create({
     color: '#a1a1aa',
     fontSize: 14,
     lineHeight: 22,
-    marginTop: 24,
+    marginTop: 28,
     marginBottom: 36,
     textAlign: 'center',
-    maxWidth: 520,
+    maxWidth: 540,
   },
   finalCtaBtn: {
     flexDirection: 'row',
@@ -656,12 +858,7 @@ const styles = StyleSheet.create({
   finalSecondaryText: { color: '#71717a', fontSize: 13 },
 
   /* Footer */
-  footer: {
-    maxWidth: 1280,
-    width: '100%',
-    alignSelf: 'center',
-    paddingHorizontal: 24,
-  },
+  footer: { maxWidth: 1280, width: '100%', alignSelf: 'center', paddingHorizontal: 32 },
   footerLine: { height: 1, backgroundColor: '#27272a', marginTop: 40 },
   footerRow: {
     flexDirection: 'row',
