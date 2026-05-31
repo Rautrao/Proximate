@@ -11,6 +11,108 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useOnboardingStore } from '@/store/onboarding';
+import type { LanguageCode } from '@/constants/quiz';
+
+const WELCOME_LANGS: { code: LanguageCode; native: string; label: string }[] = [
+  { code: 'en', native: 'English', label: 'EN' },
+  { code: 'hi', native: 'हिन्दी', label: 'HI' },
+  { code: 'ta', native: 'தமிழ்', label: 'TA' },
+  { code: 'te', native: 'తెలుగు', label: 'TE' },
+  { code: 'bn', native: 'বাংলা', label: 'BN' },
+];
+
+type WelcomeStrings = {
+  navSignIn: string;
+  navGetStarted: string;
+  locEyebrow: string;
+  locTitle: string;
+  locBody: string;
+  locSelected: string;
+  finalEyebrow: string;
+  finalTitle: string;
+  finalSubtitle: string;
+  finalCta: string;
+  finalSecondary: string;
+};
+
+const WELCOME_STRINGS: Record<LanguageCode, WelcomeStrings> = {
+  en: {
+    navSignIn: 'Sign in',
+    navGetStarted: 'Get started',
+    locEyebrow: 'LOCALISATION',
+    locTitle: 'Built for India.',
+    locBody:
+      'Onboarding and the safety quiz translated parallel across all five languages. Map tiles, police-station data, and routing — all sourced from OpenStreetMap, so the system functions in rural areas where Google services are slow or unavailable.',
+    locSelected: 'Continuing in English',
+    finalEyebrow: 'READY?',
+    finalTitle: 'Be among\nthe first protected.',
+    finalSubtitle:
+      'Verification takes about a minute. By continuing you agree to use Proximate only for genuine safety scenarios. Misuse is monitored and may be reported under applicable law.',
+    finalCta: 'Create your account',
+    finalSecondary: 'I already have an account',
+  },
+  hi: {
+    navSignIn: 'साइन इन',
+    navGetStarted: 'शुरू करें',
+    locEyebrow: 'स्थानीयकरण',
+    locTitle: 'भारत के लिए बनाया गया।',
+    locBody:
+      'ऑनबोर्डिंग और सुरक्षा क्विज़ पांचों भाषाओं में समानांतर अनुवादित। मैप टाइल्स, पुलिस स्टेशन डेटा, और रूटिंग — सब OpenStreetMap से, ताकि सिस्टम उन ग्रामीण क्षेत्रों में भी काम करे जहाँ Google सेवाएँ धीमी हैं।',
+    locSelected: 'हिन्दी में जारी',
+    finalEyebrow: 'तैयार?',
+    finalTitle: 'सुरक्षित होने वालों में\nसबसे पहले बनें।',
+    finalSubtitle:
+      'सत्यापन में लगभग एक मिनट लगता है। जारी रखकर आप सहमत हैं कि Proximate का उपयोग केवल वास्तविक सुरक्षा स्थितियों के लिए होगा। दुरुपयोग की निगरानी की जाती है।',
+    finalCta: 'अपना खाता बनाएं',
+    finalSecondary: 'मेरा पहले से खाता है',
+  },
+  ta: {
+    navSignIn: 'உள்நுழைய',
+    navGetStarted: 'தொடங்கு',
+    locEyebrow: 'உள்ளூராக்கம்',
+    locTitle: 'இந்தியாவுக்காக உருவாக்கப்பட்டது.',
+    locBody:
+      'ஒன்போர்டிங் மற்றும் பாதுகாப்பு வினாடி வினா ஐந்து மொழிகளிலும் சமாந்தரமாக மொழிபெயர்க்கப்பட்டது. வரைபடம், காவல்நிலையம், வழித்தடம் — அனைத்தும் OpenStreetMap-இலிருந்து, Google சேவைகள் மெதுவாக இருக்கும் கிராமப்புறங்களிலும் இயங்க.',
+    locSelected: 'தமிழில் தொடர்கிறது',
+    finalEyebrow: 'தயாரா?',
+    finalTitle: 'முதலில் பாதுகாக்கப்பட்டவர்களில்\nஒருவராகுங்கள்.',
+    finalSubtitle:
+      'சரிபார்ப்பு சுமார் ஒரு நிமிடம் ஆகும். தொடர்வதன் மூலம் Proximate-ஐ உண்மையான பாதுகாப்பு சூழ்நிலைகளுக்கு மட்டுமே பயன்படுத்த ஒப்புக்கொள்கிறீர்கள். தவறான பயன்பாடு கண்காணிக்கப்படுகிறது.',
+    finalCta: 'உங்கள் கணக்கை உருவாக்குக',
+    finalSecondary: 'என்னிடம் ஏற்கனவே கணக்கு உள்ளது',
+  },
+  te: {
+    navSignIn: 'సైన్ ఇన్',
+    navGetStarted: 'ప్రారంభించండి',
+    locEyebrow: 'స్థానికీకరణ',
+    locTitle: 'భారతదేశం కోసం రూపొందించబడింది.',
+    locBody:
+      'ఆన్‌బోర్డింగ్ మరియు భద్రతా క్విజ్ ఐదు భాషల్లో సమాంతరంగా అనువదించబడ్డాయి. మ్యాప్ టైల్స్, పోలీస్ స్టేషన్ డేటా, రూటింగ్ — అన్నీ OpenStreetMap నుండి, Google సేవలు నెమ్మదిగా ఉండే గ్రామీణ ప్రాంతాల్లోనూ సిస్టమ్ పనిచేస్తుంది.',
+    locSelected: 'తెలుగులో కొనసాగుతోంది',
+    finalEyebrow: 'సిద్ధమా?',
+    finalTitle: 'మొదట రక్షించబడిన వారిలో\nఒకరిగా ఉండండి.',
+    finalSubtitle:
+      'ధృవీకరణకు సుమారు ఒక నిమిషం పడుతుంది. కొనసాగించడం ద్వారా Proximate-ను నిజమైన భద్రతా పరిస్థితులకు మాత్రమే ఉపయోగిస్తానని అంగీకరిస్తున్నారు. దుర్వినియోగం పర్యవేక్షించబడుతుంది.',
+    finalCta: 'మీ ఖాతాను సృష్టించండి',
+    finalSecondary: 'నాకు ఇప్పటికే ఖాతా ఉంది',
+  },
+  bn: {
+    navSignIn: 'সাইন ইন',
+    navGetStarted: 'শুরু করুন',
+    locEyebrow: 'স্থানীয়করণ',
+    locTitle: 'ভারতের জন্য তৈরি।',
+    locBody:
+      'অনবোর্ডিং এবং নিরাপত্তা কুইজ পাঁচটি ভাষায় সমান্তরালভাবে অনূদিত। মানচিত্র টাইল, পুলিশ স্টেশন ডেটা, এবং রাউটিং — সব OpenStreetMap থেকে, যাতে Google পরিষেবা ধীর এমন গ্রামীণ এলাকায়ও সিস্টেম কাজ করে।',
+    locSelected: 'বাংলায় চলছে',
+    finalEyebrow: 'প্রস্তুত?',
+    finalTitle: 'সুরক্ষিতদের মধ্যে\nপ্রথম হোন।',
+    finalSubtitle:
+      'যাচাইয়ে প্রায় এক মিনিট লাগে। চালিয়ে গিয়ে আপনি সম্মত হন যে Proximate শুধুমাত্র প্রকৃত নিরাপত্তা পরিস্থিতির জন্য ব্যবহার করবেন। অপব্যবহার পর্যবেক্ষণ করা হয়।',
+    finalCta: 'আপনার অ্যাকাউন্ট তৈরি করুন',
+    finalSecondary: 'আমার ইতিমধ্যেই একটি অ্যাকাউন্ট আছে',
+  },
+};
 
 const FEATURES = [
   {
@@ -92,6 +194,9 @@ const STACK = [
 export default function WelcomeScreen() {
   const router = useRouter();
   const scrollRef = useRef<ScrollView>(null);
+  const language = useOnboardingStore((s) => s.language) ?? 'en';
+  const setLanguage = useOnboardingStore((s) => s.setLanguage);
+  const t = WELCOME_STRINGS[language];
 
   const goToQuiz = () => router.push('/(auth)/quiz');
   const goToLogin = () => router.push('/(auth)/login');
@@ -120,10 +225,10 @@ export default function WelcomeScreen() {
             </View>
             <View style={styles.navCtas}>
               <Pressable onPress={goToLogin} style={({ pressed }) => [styles.navLoginBtn, pressed && { opacity: 0.6 }]}>
-                <Text style={styles.navLoginText}>Sign in</Text>
+                <Text style={styles.navLoginText}>{t.navSignIn}</Text>
               </Pressable>
               <Pressable onPress={goToQuiz} style={({ pressed }) => [styles.navCta, pressed && { opacity: 0.85 }]}>
-                <Text style={styles.navCtaText}>Get started</Text>
+                <Text style={styles.navCtaText}>{t.navGetStarted}</Text>
                 <Ionicons name="arrow-forward" size={14} color="#0a0a0a" />
               </Pressable>
             </View>
@@ -290,47 +395,51 @@ export default function WelcomeScreen() {
           </View>
         </View>
 
-        {/* LOCALISATION — chips */}
+        {/* LOCALISATION — clickable language cards */}
         <View style={styles.section}>
-          <Text style={styles.sectionEyebrow}>LOCALISATION</Text>
-          <Text style={styles.sectionTitle}>Built for India.</Text>
+          <Text style={styles.sectionEyebrow}>{t.locEyebrow}</Text>
+          <Text style={styles.sectionTitle}>{t.locTitle}</Text>
           <View style={styles.langRow}>
-            {[
-              { native: 'English', label: 'EN' },
-              { native: 'हिन्दी', label: 'HI' },
-              { native: 'தமிழ்', label: 'TA' },
-              { native: 'తెలుగు', label: 'TE' },
-              { native: 'বাংলা', label: 'BN' },
-            ].map((l) => (
-              <View key={l.label} style={styles.langCard}>
-                <Text style={styles.langCardNative}>{l.native}</Text>
-                <Text style={styles.langCardLabel}>{l.label}</Text>
-              </View>
-            ))}
+            {WELCOME_LANGS.map((l) => {
+              const selected = language === l.code;
+              return (
+                <Pressable
+                  key={l.code}
+                  onPress={() => setLanguage(l.code)}
+                  style={({ pressed }) => [
+                    styles.langCard,
+                    selected && styles.langCardSelected,
+                    pressed && { opacity: 0.85 },
+                  ]}
+                >
+                  <Text style={styles.langCardNative}>{l.native}</Text>
+                  <Text
+                    style={[
+                      styles.langCardLabel,
+                      selected && styles.langCardLabelSelected,
+                    ]}
+                  >
+                    {l.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
-          <Text style={[styles.body, { marginTop: 24 }]}>
-            Onboarding and the safety quiz translated parallel across all five
-            languages. Map tiles, police-station data, and routing — all
-            sourced from OpenStreetMap, so the system functions in rural
-            areas where Google services are slow or unavailable.
-          </Text>
+          <Text style={styles.langSelectedLine}>{t.locSelected}</Text>
+          <Text style={[styles.body, { marginTop: 12 }]}>{t.locBody}</Text>
         </View>
 
         {/* FINAL CTA */}
         <View style={styles.finalCta}>
-          <Text style={styles.finalEyebrow}>READY?</Text>
-          <Text style={styles.finalTitle}>Be among{'\n'}the first protected.</Text>
-          <Text style={styles.finalSubtitle}>
-            Verification takes about a minute. By continuing you agree to use
-            Proximate only for genuine safety scenarios. Misuse is monitored
-            and may be reported under applicable law.
-          </Text>
+          <Text style={styles.finalEyebrow}>{t.finalEyebrow}</Text>
+          <Text style={styles.finalTitle}>{t.finalTitle}</Text>
+          <Text style={styles.finalSubtitle}>{t.finalSubtitle}</Text>
           <Pressable onPress={goToQuiz} style={({ pressed }) => [styles.finalCtaBtn, pressed && { opacity: 0.85 }]}>
-            <Text style={styles.finalCtaText}>Create your account</Text>
+            <Text style={styles.finalCtaText}>{t.finalCta}</Text>
             <Ionicons name="arrow-forward" size={18} color="#0a0a0a" />
           </Pressable>
           <Pressable onPress={goToLogin} style={({ pressed }) => [styles.finalSecondary, pressed && { opacity: 0.7 }]}>
-            <Text style={styles.finalSecondaryText}>I already have an account</Text>
+            <Text style={styles.finalSecondaryText}>{t.finalSecondary}</Text>
           </Pressable>
         </View>
 
@@ -873,8 +982,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  langCardSelected: {
+    borderColor: '#fbbf24',
+    backgroundColor: 'rgba(251, 191, 36, 0.08)',
+  },
   langCardNative: { color: '#fafafa', fontSize: 18, fontWeight: '600' },
   langCardLabel: { color: '#52525b', fontSize: 10, letterSpacing: 1.5, fontWeight: '600' },
+  langCardLabelSelected: { color: '#fbbf24' },
+  langSelectedLine: {
+    color: '#fbbf24',
+    fontSize: 11,
+    letterSpacing: 2,
+    fontWeight: '600',
+    marginTop: 18,
+  },
 
   /* Final CTA */
   finalCta: {
