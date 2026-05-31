@@ -151,11 +151,34 @@ export default function WelcomeScreen() {
           </View>
         </View>
 
-        {/* Trust strip */}
-        <View style={styles.trustStrip}>
-          {['END-TO-END ENCRYPTED', 'SUB-SECOND TRIGGERS', 'PRIVACY BY DESIGN', 'VERIFIED RESPONDERS', '5 LANGUAGES'].map((t) => (
-            <Text key={t} style={styles.trustItem}>{t}</Text>
-          ))}
+        {/* Trust strip — infinite-scroll marquee, full-bleed */}
+        <View style={styles.marqueeMask}>
+          {/* Two copies of the items, side by side, animated -50% so the
+              second copy slides into the first copy's slot seamlessly */}
+          <View
+            style={styles.marqueeTrack}
+            {...({ className: 'proximate-marquee' } as object)}
+          >
+            {[0, 1].map((copy) => (
+              <View key={copy} style={styles.marqueeGroup}>
+                {[
+                  'END-TO-END ENCRYPTED',
+                  'SUB-SECOND TRIGGERS',
+                  'PRIVACY BY DESIGN',
+                  'VERIFIED RESPONDERS',
+                  '5 LANGUAGES',
+                  'COMMUNITY VERIFICATION',
+                  'OPENSTREETMAP ROUTING',
+                  'WEBRTC LIVE VIDEO',
+                ].map((t, i) => (
+                  <View key={`${copy}-${i}`} style={styles.marqueeItem}>
+                    <Text style={styles.trustItem}>{t}</Text>
+                    <View style={styles.marqueeDot} />
+                  </View>
+                ))}
+              </View>
+            ))}
+          </View>
         </View>
 
         {/* THE PROBLEM — 2-col: text left, stat card right */}
@@ -494,20 +517,39 @@ const styles = StyleSheet.create({
   },
   heroScrollHint: { color: '#52525b', fontSize: 12, letterSpacing: 1, marginTop: 36 },
 
-  /* Trust strip */
-  trustStrip: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 28,
-    paddingHorizontal: 32,
-    paddingVertical: 24,
+  /* Trust strip marquee */
+  marqueeMask: {
+    width: '100%',
+    overflow: 'hidden',
     borderTopWidth: 1,
     borderTopColor: '#27272a',
-    maxWidth: 1280,
-    width: '100%',
-    alignSelf: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#27272a',
+    paddingVertical: 22,
+    backgroundColor: '#0a0a0a',
   },
-  trustItem: { color: '#52525b', fontSize: 10, letterSpacing: 2, fontWeight: '600' },
+  marqueeTrack: {
+    flexDirection: 'row',
+    width: 'auto' as unknown as number, // RN Web honors string here
+  },
+  marqueeGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  marqueeItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 28,
+    paddingHorizontal: 28,
+  },
+  marqueeDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#27272a',
+  },
+  trustItem: { color: '#71717a', fontSize: 11, letterSpacing: 2.2, fontWeight: '600' },
 
   /* Section (single-col) */
   section: {
