@@ -272,7 +272,7 @@ export default function WelcomeScreen() {
         </View>
 
         {/* TECHNOLOGY — 4-col compact stack grid */}
-        <View style={styles.section}>
+        <View style={[styles.section, { borderTopWidth: 0 }]}>
           <Text style={styles.sectionEyebrow}>TECHNOLOGY</Text>
           <Text style={styles.sectionTitle}>The stack, made plain.</Text>
           <Text style={[styles.body, { marginBottom: 28 }]}>
@@ -467,6 +467,8 @@ const styles = StyleSheet.create({
   /* Sticky nav */
   navWrap: {
     backgroundColor: 'rgba(9, 9, 11, 0.85)',
+    borderBottomWidth: 1,
+    borderBottomColor: '#27272a',
   },
   nav: {
     flexDirection: 'row',
@@ -584,6 +586,8 @@ const styles = StyleSheet.create({
   section: {
     paddingHorizontal: 32,
     paddingVertical: 80,
+    borderTopWidth: 1,
+    borderTopColor: '#27272a',
     maxWidth: 1280,
     width: '100%',
     alignSelf: 'center',
@@ -596,6 +600,8 @@ const styles = StyleSheet.create({
     gap: 56,
     paddingHorizontal: 32,
     paddingVertical: 80,
+    borderTopWidth: 1,
+    borderTopColor: '#27272a',
     maxWidth: 1280,
     width: '100%',
     alignSelf: 'center',
@@ -876,6 +882,8 @@ const styles = StyleSheet.create({
     paddingTop: 96,
     paddingBottom: 60,
     alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#27272a',
     maxWidth: 1280,
     width: '100%',
     alignSelf: 'center',
@@ -914,7 +922,7 @@ const styles = StyleSheet.create({
 
   /* Footer */
   footer: { maxWidth: 1280, width: '100%', alignSelf: 'center', paddingHorizontal: 32 },
-  footerLine: { marginTop: 40 },
+  footerLine: { height: 1, backgroundColor: '#27272a', marginTop: 40 },
   footerRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
