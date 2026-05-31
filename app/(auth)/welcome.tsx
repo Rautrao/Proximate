@@ -247,7 +247,7 @@ export default function WelcomeScreen() {
             <Text style={styles.sectionTitle}>A single tap.{'\n'}A trusted network.</Text>
             <Text style={styles.body}>
               Quiet by default, decisive when needed. The interface stays out
-              of the way until the moment it doesn\'t. Three triggers,
+              of the way until the moment it doesn't. Three triggers,
               one trusted circle, and a live link to the responder network.
             </Text>
             <View style={styles.bulletRow}>
