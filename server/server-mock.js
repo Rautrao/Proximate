@@ -389,12 +389,36 @@ io.on('connection', (socket) => {
     if (responderId) io.to(responderId).emit('webrtc:offer', payload);
     else io.to('responders').emit('webrtc:offer', payload);
   });
-  socket.on('webrtc:ice', ({ candidate, responderId }) => {
+
+  // Two flow directions share these event names on the citizen socket:
+  //   A) victim sending ICE TO a specific responder (carries responderId)
+  //   B) citizen-responder sending ICE/answer TO a specific victim (carries userId)
+  // We distinguish by payload shape.
+  socket.on('webrtc:ice', (msg) => {
+    if (msg && msg.userId) {
+      // (B) citizen-responder → victim
+      if (!socket.rooms.has('responders')) return;
+      io.to(`user:${msg.userId}`).emit('webrtc:ice', {
+        responderId: socket.id,
+        candidate: msg.candidate,
+      });
+      return;
+    }
+    // (A) victim → responder
     const inc = activeIncidentForCitizen();
     if (!inc) return;
-    const payload = { incidentId: inc.id, userId: uid, candidate };
-    if (responderId) io.to(responderId).emit('webrtc:ice', payload);
+    const payload = { incidentId: inc.id, userId: uid, candidate: msg?.candidate };
+    if (msg?.responderId) io.to(msg.responderId).emit('webrtc:ice', payload);
     else io.to('responders').emit('webrtc:ice', payload);
+  });
+
+  socket.on('webrtc:answer', ({ userId, sdp }) => {
+    // Only citizens currently subscribed to the responders feed can answer.
+    if (!socket.rooms.has('responders')) return;
+    io.to(`user:${userId}`).emit('webrtc:answer', {
+      responderId: socket.id,
+      sdp,
+    });
   });
 
   socket.on('disconnect', () => console.log(`[socket] disconnected userId=${uid}`));

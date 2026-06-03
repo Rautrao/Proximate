@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/auth';
 import { getSocket } from '@/services/socket';
 import { setResponderMode } from '@/services/api';
+import { startVictimViewer } from '@/services/webrtc-viewer';
 
 interface IncidentResponder {
   id: string;
@@ -17,6 +18,7 @@ interface IncidentResponder {
 
 interface NearbyIncident {
   id: string;
+  userId: string;
   victimName: string;
   tier: number;
   radius: number;
@@ -271,6 +273,88 @@ export default function ResponderScreen() {
   );
 }
 
+/* ── Live victim video — only after we've acked ─────────────────────────── */
+function VictimVideo({ victimUserId, active }: { victimUserId: string; active: boolean }) {
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const containerRef = useRef<View>(null);
+
+  useEffect(() => {
+    if (!active) {
+      setStream(null);
+      setErr(null);
+      return;
+    }
+    setErr(null);
+    const handle = startVictimViewer({
+      socket: getSocket(),
+      victimUserId,
+      onStream: setStream,
+      onError: setErr,
+    });
+    return () => {
+      handle?.stop();
+      setStream(null);
+    };
+  }, [active, victimUserId]);
+
+  // The actual <video> element is web-only and lives outside the RN tree —
+  // mount it as a DOM child of the container View once the stream arrives.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !stream) return;
+    const host = (containerRef.current as unknown as HTMLDivElement | null) ?? null;
+    if (!host) return;
+    const video = document.createElement('video');
+    video.srcObject = stream;
+    video.autoplay = true;
+    video.playsInline = true;
+    video.muted = true; // browsers block autoplay with sound
+    video.style.width = '100%';
+    video.style.height = '100%';
+    video.style.objectFit = 'cover';
+    video.style.display = 'block';
+    video.style.borderRadius = '12px';
+    video.style.backgroundColor = '#000';
+    host.appendChild(video);
+    return () => {
+      try { host.removeChild(video); } catch { /* already gone */ }
+    };
+  }, [stream]);
+
+  if (!active) {
+    return (
+      <View style={sheet.videoPlaceholder}>
+        <Ionicons name="videocam-off-outline" size={18} color="#52525b" />
+        <Text style={sheet.videoPlaceholderText}>
+          Live video starts once you respond.
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={sheet.videoWrap}>
+      <View style={sheet.videoLabelRow}>
+        <View style={sheet.videoDot} />
+        <Text style={sheet.videoLabel}>LIVE FROM VICTIM</Text>
+      </View>
+      <View ref={containerRef} style={sheet.videoBox}>
+        {!stream && !err ? (
+          <View style={sheet.videoLoading}>
+            <Text style={sheet.videoLoadingText}>Connecting to camera…</Text>
+          </View>
+        ) : null}
+        {err && err !== 'webrtc-unsupported' ? (
+          <Text style={sheet.videoErr}>Video unavailable: {err}</Text>
+        ) : null}
+        {err === 'webrtc-unsupported' ? (
+          <Text style={sheet.videoErr}>Live video is available on the web build.</Text>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
 /* ── Detail sheet — opens when a card is tapped ─────────────────────────── */
 function IncidentDetailSheet({
   incident,
@@ -320,6 +404,9 @@ function IncidentDetailSheet({
           </View>
 
           <ScrollView style={{ maxHeight: 480 }} showsVerticalScrollIndicator={false}>
+            {/* Live video — only flows after the user has acked */}
+            <VictimVideo victimUserId={incident.userId} active={youAcked} />
+
             {/* Location */}
             <Text style={sheet.label}>LOCATION</Text>
             {incident.location ? (
@@ -718,4 +805,37 @@ const sheet = StyleSheet.create({
     borderRadius: 999,
   },
   secondaryText: { fontSize: 12, fontWeight: '600' },
+
+  /* Live victim video */
+  videoPlaceholder: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: '#18181b',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#27272a',
+    borderStyle: 'dashed',
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  videoPlaceholderText: { color: '#71717a', fontSize: 12 },
+  videoWrap: { marginTop: 4, marginBottom: 8 },
+  videoLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
+  videoDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#ef4444' },
+  videoLabel: { color: '#a1a1aa', fontSize: 10, fontWeight: '700', letterSpacing: 1.5 },
+  videoBox: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+    backgroundColor: '#000',
+    borderRadius: 12,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  videoLoading: { alignItems: 'center', justifyContent: 'center' },
+  videoLoadingText: { color: '#71717a', fontSize: 12 },
+  videoErr: { color: '#f87171', fontSize: 12, padding: 12, textAlign: 'center' },
 });
