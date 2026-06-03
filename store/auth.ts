@@ -2,10 +2,25 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
+export type Gender = 'female' | 'male' | 'nonbinary' | 'unspecified';
+export type BloodGroup =
+  | 'O+' | 'O-' | 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'unknown';
+export type UserRole = 'citizen' | 'responder' | 'police';
+
+export interface EmergencyContact {
+  name: string;
+  phone: string;
+}
+
 export interface User {
   id: string;
   name: string;
   phone: string;
+  email?: string;
+  gender?: Gender;
+  bloodGroup?: BloodGroup;
+  role: UserRole;
+  emergencyContacts?: EmergencyContact[];
   token: string;
 }
 

@@ -1,5 +1,22 @@
 import axios, { AxiosError } from 'axios';
-import { User } from '@/store/auth';
+import {
+  User,
+  Gender,
+  BloodGroup,
+  UserRole,
+  EmergencyContact,
+} from '@/store/auth';
+
+export interface RegisterPayload {
+  name: string;
+  phone: string;
+  password: string;
+  email?: string;
+  gender?: Gender;
+  bloodGroup?: BloodGroup;
+  role: UserRole;
+  emergencyContacts?: EmergencyContact[];
+}
 
 export const API_URL =
   process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000/api';
@@ -22,13 +39,9 @@ export async function loginUser(phone: string, password: string): Promise<User> 
   }
 }
 
-export async function registerUser(
-  name: string,
-  phone: string,
-  password: string
-): Promise<User> {
+export async function registerUser(payload: RegisterPayload): Promise<User> {
   try {
-    const { data } = await api.post<User>('/auth/register', { name, phone, password });
+    const { data } = await api.post<User>('/auth/register', payload);
     return data;
   } catch (err) {
     throw new Error(extractMessage(err));

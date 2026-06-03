@@ -27,16 +27,39 @@ app.get('/api/incidents', (_req, res) => {
 });
 
 app.post('/api/auth/register', (req, res) => {
-  const { name, phone, password } = req.body;
+  const {
+    name,
+    phone,
+    password,
+    email,
+    gender,
+    bloodGroup,
+    role = 'citizen',
+    emergencyContacts = [],
+  } = req.body;
   if (!name || !phone || !password)
-    return res.status(400).json({ error: 'All fields required' });
+    return res.status(400).json({ error: 'Name, phone, and password are required' });
+  if (!['citizen', 'responder', 'police'].includes(role))
+    return res.status(400).json({ error: 'Invalid role' });
   if (users.has(phone))
     return res.status(409).json({ error: 'Phone already registered' });
 
   const id = String(nextId++);
-  users.set(phone, { id, name, phone, password });
-  const token = jwt.sign({ userId: id }, SECRET, { expiresIn: '30d' });
-  res.status(201).json({ id, name, phone, token });
+  const record = {
+    id,
+    name,
+    phone,
+    password,
+    email,
+    gender,
+    bloodGroup,
+    role,
+    emergencyContacts,
+  };
+  users.set(phone, record);
+  const token = jwt.sign({ userId: id, role }, SECRET, { expiresIn: '30d' });
+  const { password: _pw, ...safe } = record;
+  res.status(201).json({ ...safe, token });
 });
 
 app.post('/api/auth/login', (req, res) => {
@@ -45,8 +68,9 @@ app.post('/api/auth/login', (req, res) => {
   if (!user || user.password !== password)
     return res.status(401).json({ error: 'Invalid credentials' });
 
-  const token = jwt.sign({ userId: user.id }, SECRET, { expiresIn: '30d' });
-  res.json({ id: user.id, name: user.name, phone: user.phone, token });
+  const token = jwt.sign({ userId: user.id, role: user.role }, SECRET, { expiresIn: '30d' });
+  const { password: _pw, ...safe } = user;
+  res.json({ ...safe, token });
 });
 
 app.post('/api/auth/fcm-token', (_req, res) => res.json({ ok: true }));
