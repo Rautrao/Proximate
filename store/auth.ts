@@ -2,7 +2,18 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
-export type Gender = 'female' | 'male' | 'nonbinary' | 'unspecified';
+export type Gender =
+  | 'female'
+  | 'male'
+  | 'nonbinary'
+  | 'transgender_female'
+  | 'transgender_male'
+  | 'genderfluid'
+  | 'genderqueer'
+  | 'agender'
+  | 'intersex'
+  | 'other'
+  | 'unspecified';
 export type BloodGroup =
   | 'O+' | 'O-' | 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'unknown';
 export type UserRole = 'citizen' | 'responder' | 'police';

@@ -48,6 +48,28 @@ export async function registerUser(payload: RegisterPayload): Promise<User> {
   }
 }
 
+export type OtpChannel = 'sms' | 'email';
+
+export async function sendOtp(channel: OtpChannel, target: string): Promise<void> {
+  try {
+    await api.post('/auth/otp/send', { channel, target });
+  } catch (err) {
+    throw new Error(extractMessage(err));
+  }
+}
+
+export async function verifyOtp(
+  channel: OtpChannel,
+  target: string,
+  code: string
+): Promise<void> {
+  try {
+    await api.post('/auth/otp/verify', { channel, target, code });
+  } catch (err) {
+    throw new Error(extractMessage(err));
+  }
+}
+
 export async function registerFCMToken(
   userId: string,
   token: string,

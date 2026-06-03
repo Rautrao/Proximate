@@ -13,8 +13,15 @@ const PORT = 3000;
 
 const users = new Map();
 const incidents = new Map();
+const otpCodes = new Map(); // target -> { code, expiresAt }
 let nextId = 1;
 let incidentSeq = 1;
+
+// In dev / coursework we don't actually call Twilio or SendGrid. Any code the
+// user enters of length 6 with a matching target is accepted; the convenience
+// constant below is what the UI hints to the user so they don't have to read
+// the server log. Phase 3 will swap this for a real SMS provider.
+const DEV_OTP = '123456';
 
 const app = express();
 app.use(cors());
@@ -74,6 +81,30 @@ app.post('/api/auth/login', (req, res) => {
 });
 
 app.post('/api/auth/fcm-token', (_req, res) => res.json({ ok: true }));
+
+app.post('/api/auth/otp/send', (req, res) => {
+  const { channel, target } = req.body || {};
+  if (!channel || !target) return res.status(400).json({ error: 'channel and target are required' });
+  if (!['sms', 'email'].includes(channel))
+    return res.status(400).json({ error: 'channel must be sms or email' });
+  otpCodes.set(target, { code: DEV_OTP, expiresAt: Date.now() + 10 * 60 * 1000 });
+  console.log(`[OTP] ${channel} → ${target} (dev code: ${DEV_OTP})`);
+  res.json({ sent: true });
+});
+
+app.post('/api/auth/otp/verify', (req, res) => {
+  const { target, code } = req.body || {};
+  if (!target || !code) return res.status(400).json({ error: 'target and code are required' });
+  const entry = otpCodes.get(target);
+  if (!entry) return res.status(400).json({ error: 'No code was sent to this target' });
+  if (entry.expiresAt < Date.now()) {
+    otpCodes.delete(target);
+    return res.status(400).json({ error: 'Code has expired — request a new one' });
+  }
+  if (entry.code !== code) return res.status(400).json({ error: 'Incorrect code' });
+  otpCodes.delete(target);
+  res.json({ verified: true });
+});
 
 const httpServer = http.createServer(app);
 const io = new Server(httpServer, { cors: { origin: '*' }, transports: ['websocket'] });
