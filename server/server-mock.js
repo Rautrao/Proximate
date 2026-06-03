@@ -280,6 +280,8 @@ io.on('connection', (socket) => {
     if (!socket.rooms.has('responders')) return;
     const inc = incidents.get(incidentId);
     if (!inc || inc.userId === uid) return; // can't ack your own incident
+    // Idempotent — multiple taps don't pile up duplicate entries.
+    if ((inc.responders || []).some((r) => r.id === socket.id)) return;
     const responder = {
       id: socket.id,
       name: userRecord?.name || 'Nearby user',
@@ -290,6 +292,41 @@ io.on('connection', (socket) => {
     io.to('responders').emit('incident:update', inc);
     io.to(`user:${inc.userId}`).emit('sos:responder_ack', responder);
     console.log(`[ACK] (citizen-responder) ${responder.name} → ${incidentId}`);
+  });
+
+  socket.on('responder:verify', ({ incidentId }) => {
+    if (!socket.rooms.has('responders')) return;
+    const inc = incidents.get(incidentId);
+    if (!inc || inc.userId === uid) return;
+    inc.verifiedBy = inc.verifiedBy || [];
+    if (inc.verifiedBy.includes(socket.id)) return;
+    inc.verifiedBy.push(socket.id);
+    io.to('responders').emit('incident:update', inc);
+    io.to(`user:${inc.userId}`).emit('sos:verification_update', {
+      incidentId,
+      verifications: inc.verifiedBy.length,
+      falseAlarmVotes: (inc.flaggedBy || []).length,
+    });
+    console.log(`[VERIFY] (citizen-responder) → ${incidentId} (${inc.verifiedBy.length} total)`);
+  });
+
+  socket.on('responder:flag_false_alarm', ({ incidentId }) => {
+    if (!socket.rooms.has('responders')) return;
+    const inc = incidents.get(incidentId);
+    if (!inc || inc.userId === uid) return;
+    inc.flaggedBy = inc.flaggedBy || [];
+    if (inc.flaggedBy.includes(socket.id)) return;
+    inc.flaggedBy.push(socket.id);
+    if (inc.flaggedBy.length >= 2 && (inc.responders || []).length === 0) {
+      inc.pendingVerification = true;
+    }
+    io.to('responders').emit('incident:update', inc);
+    io.to(`user:${inc.userId}`).emit('sos:verification_update', {
+      incidentId,
+      verifications: (inc.verifiedBy || []).length,
+      falseAlarmVotes: inc.flaggedBy.length,
+    });
+    console.log(`[FALSE-ALARM] (citizen-responder) → ${incidentId} (${inc.flaggedBy.length} total)`);
   });
 
   socket.on('location:update', () => {});

@@ -1,10 +1,19 @@
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/auth';
 import { getSocket } from '@/services/socket';
 import { setResponderMode } from '@/services/api';
+
+interface IncidentResponder {
+  id: string;
+  name: string;
+  distance?: number;
+  acknowledgedAt?: number;
+  routeDistanceMeters?: number;
+  routeDurationSeconds?: number;
+}
 
 interface NearbyIncident {
   id: string;
@@ -13,7 +22,20 @@ interface NearbyIncident {
   radius: number;
   startedAt: number;
   status: 'active' | 'cancelled' | 'resolved';
-  responders?: { id: string; name: string }[];
+  location?: { lat: number; lng: number };
+  responders?: IncidentResponder[];
+  verifiedBy?: string[];
+  flaggedBy?: string[];
+  escalationLog?: { tier: number; radius: number; at: number }[];
+  pendingVerification?: boolean;
+}
+
+function elapsed(startedAt: number): string {
+  const s = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  const rem = s % 60;
+  return `${m}m ${rem.toString().padStart(2, '0')}s`;
 }
 
 export default function ResponderScreen() {
@@ -21,6 +43,9 @@ export default function ResponderScreen() {
   const responderOn = Boolean(user?.responderEnabled);
   const [nearbyIncidents, setNearbyIncidents] = useState<NearbyIncident[]>([]);
   const [syncWarn, setSyncWarn] = useState('');
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [ackedIds, setAckedIds] = useState<Set<string>>(new Set());
+  const activeIncident = nearbyIncidents.find((i) => i.id === activeId) ?? null;
 
   // Local-first: flip the store + emit the socket event immediately so the
   // UI never feels stuck. The HTTP sync runs in the background; if it fails
@@ -87,6 +112,29 @@ export default function ResponderScreen() {
   function acknowledge(incidentId: string) {
     const sock = getSocket();
     if (sock?.connected) sock.emit('responder:ack', { incidentId, distance: 280 });
+    setAckedIds((s) => {
+      const next = new Set(s);
+      next.add(incidentId);
+      return next;
+    });
+  }
+  function verify(incidentId: string) {
+    const sock = getSocket();
+    if (sock?.connected) sock.emit('responder:verify', { incidentId });
+  }
+  function flagFalse(incidentId: string) {
+    const sock = getSocket();
+    if (sock?.connected) sock.emit('responder:flag_false_alarm', { incidentId });
+  }
+  function openInMaps(loc?: { lat: number; lng: number }) {
+    if (!loc) return;
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${loc.lat},${loc.lng}`;
+    if (Platform.OS === 'web') window.open(url, '_blank');
+    else Linking.openURL(url);
+  }
+  function respondAndOpen(incidentId: string) {
+    acknowledge(incidentId);
+    setActiveId(incidentId);
   }
 
   return (
@@ -141,39 +189,59 @@ export default function ResponderScreen() {
                 {nearbyIncidents.length} ACTIVE {nearbyIncidents.length === 1 ? 'ALERT' : 'ALERTS'}
               </Text>
               {nearbyIncidents.map((inc) => {
-                const ackedByMe = (inc.responders || []).length > 0;
+                const ackCount = (inc.responders || []).length;
+                const youAcked = ackedIds.has(inc.id);
                 return (
-                  <View key={inc.id} style={styles.alertCard}>
+                  <Pressable
+                    key={inc.id}
+                    onPress={() => setActiveId(inc.id)}
+                    style={({ pressed }) => [styles.alertCard, pressed && { opacity: 0.92 }]}
+                  >
                     <View style={styles.alertHead}>
                       <View style={styles.alertPulse} />
                       <Text style={styles.alertVictim}>{inc.victimName}</Text>
                       <Text style={styles.alertTier}>TIER {inc.tier}</Text>
                     </View>
                     <Text style={styles.alertMeta}>
-                      {inc.radius}m radius · started{' '}
-                      {Math.max(0, Math.floor((Date.now() - inc.startedAt) / 1000))}s ago
-                      {(inc.responders || []).length > 0
-                        ? ` · ${(inc.responders || []).length} responding`
-                        : ''}
+                      {inc.radius}m radius · started {elapsed(inc.startedAt)} ago
+                      {ackCount > 0 ? ` · ${ackCount} responding` : ''}
                     </Text>
-                    <Pressable
-                      onPress={() => acknowledge(inc.id)}
-                      style={({ pressed }) => [
-                        styles.respondBtn,
-                        ackedByMe && styles.respondBtnAcked,
-                        pressed && { opacity: 0.85 },
-                      ]}
-                    >
-                      <Ionicons
-                        name={ackedByMe ? 'checkmark-circle' : 'flash'}
-                        size={16}
-                        color="#0a0a0a"
-                      />
-                      <Text style={styles.respondText}>
-                        {ackedByMe ? 'Acknowledged' : "I'm on my way"}
-                      </Text>
-                    </Pressable>
-                  </View>
+                    <View style={styles.alertActions}>
+                      <Pressable
+                        onPress={(e) => {
+                          e.stopPropagation?.();
+                          respondAndOpen(inc.id);
+                        }}
+                        style={({ pressed }) => [
+                          styles.respondBtn,
+                          youAcked && styles.respondBtnAcked,
+                          pressed && { opacity: 0.85 },
+                        ]}
+                      >
+                        <Ionicons
+                          name={youAcked ? 'checkmark-circle' : 'flash'}
+                          size={16}
+                          color="#0a0a0a"
+                        />
+                        <Text style={styles.respondText}>
+                          {youAcked ? 'On the way · view' : "I'm on my way"}
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={(e) => {
+                          e.stopPropagation?.();
+                          setActiveId(inc.id);
+                        }}
+                        style={({ pressed }) => [
+                          styles.detailsBtn,
+                          pressed && { opacity: 0.7 },
+                        ]}
+                      >
+                        <Text style={styles.detailsBtnText}>Details</Text>
+                        <Ionicons name="chevron-forward" size={14} color="#fbbf24" />
+                      </Pressable>
+                    </View>
+                  </Pressable>
                 );
               })}
             </View>
@@ -189,7 +257,184 @@ export default function ResponderScreen() {
           </View>
         )}
       </ScrollView>
+
+      <IncidentDetailSheet
+        incident={activeIncident}
+        youAcked={activeIncident ? ackedIds.has(activeIncident.id) : false}
+        onClose={() => setActiveId(null)}
+        onAck={() => activeIncident && acknowledge(activeIncident.id)}
+        onVerify={() => activeIncident && verify(activeIncident.id)}
+        onFlag={() => activeIncident && flagFalse(activeIncident.id)}
+        onNavigate={() => openInMaps(activeIncident?.location)}
+      />
     </SafeAreaView>
+  );
+}
+
+/* ── Detail sheet — opens when a card is tapped ─────────────────────────── */
+function IncidentDetailSheet({
+  incident,
+  youAcked,
+  onClose,
+  onAck,
+  onVerify,
+  onFlag,
+  onNavigate,
+}: {
+  incident: NearbyIncident | null;
+  youAcked: boolean;
+  onClose: () => void;
+  onAck: () => void;
+  onVerify: () => void;
+  onFlag: () => void;
+  onNavigate: () => void;
+}) {
+  if (!incident) {
+    return <Modal visible={false} transparent animationType="fade" />;
+  }
+  const responders = incident.responders || [];
+  const verifications = (incident.verifiedBy || []).length;
+  const falseFlags = (incident.flaggedBy || []).length;
+
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <View style={sheet.scrim}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View style={sheet.panel}>
+          {/* Header */}
+          <View style={sheet.header}>
+            <View style={sheet.headerLeft}>
+              <View style={sheet.pulse} />
+              <Text style={sheet.headerName}>{incident.victimName}</Text>
+            </View>
+            <Pressable onPress={onClose} hitSlop={10}>
+              <Ionicons name="close" size={22} color="#a1a1aa" />
+            </Pressable>
+          </View>
+
+          <View style={sheet.tierRow}>
+            <Text style={sheet.tierBadge}>TIER {incident.tier}</Text>
+            <Text style={sheet.tierMeta}>
+              {incident.radius}m radius · {elapsed(incident.startedAt)} elapsed
+            </Text>
+          </View>
+
+          <ScrollView style={{ maxHeight: 480 }} showsVerticalScrollIndicator={false}>
+            {/* Location */}
+            <Text style={sheet.label}>LOCATION</Text>
+            {incident.location ? (
+              <>
+                <Text style={sheet.coord}>
+                  {incident.location.lat.toFixed(5)}, {incident.location.lng.toFixed(5)}
+                </Text>
+                <Pressable
+                  onPress={onNavigate}
+                  style={({ pressed }) => [sheet.mapBtn, pressed && { opacity: 0.85 }]}
+                >
+                  <Ionicons name="navigate" size={15} color="#fafafa" />
+                  <Text style={sheet.mapBtnText}>Open in Maps</Text>
+                </Pressable>
+              </>
+            ) : (
+              <Text style={sheet.dim}>Location not shared.</Text>
+            )}
+
+            {/* Other responders */}
+            <Text style={sheet.label}>
+              RESPONDERS ({responders.length}){youAcked ? ' · INCLUDING YOU' : ''}
+            </Text>
+            {responders.length === 0 ? (
+              <Text style={sheet.dim}>No one has acknowledged yet.</Text>
+            ) : (
+              responders.map((r) => {
+                const eta = r.routeDurationSeconds
+                  ? `${Math.round(r.routeDurationSeconds / 60)} min`
+                  : null;
+                return (
+                  <View key={r.id} style={sheet.responderRow}>
+                    <View style={sheet.responderDot} />
+                    <Text style={sheet.responderName}>{r.name}</Text>
+                    <Text style={sheet.responderMeta}>
+                      {r.distance ? `${r.distance}m away` : '—'}
+                      {eta ? ` · ETA ${eta}` : ''}
+                    </Text>
+                  </View>
+                );
+              })
+            )}
+
+            {/* Community verification */}
+            <Text style={sheet.label}>COMMUNITY VERIFICATION</Text>
+            <View style={sheet.verifyRow}>
+              <View style={sheet.verifyStat}>
+                <Text style={sheet.verifyStatNum}>{verifications}</Text>
+                <Text style={sheet.verifyStatLabel}>verified</Text>
+              </View>
+              <View style={sheet.verifyStat}>
+                <Text style={[sheet.verifyStatNum, { color: '#f87171' }]}>{falseFlags}</Text>
+                <Text style={sheet.verifyStatLabel}>flagged false</Text>
+              </View>
+              {incident.pendingVerification ? (
+                <Text style={sheet.pausedTag}>PAUSED PENDING REVIEW</Text>
+              ) : null}
+            </View>
+
+            {/* Escalation log */}
+            {(incident.escalationLog || []).length > 0 ? (
+              <>
+                <Text style={sheet.label}>ESCALATION</Text>
+                {(incident.escalationLog || []).map((step, i) => (
+                  <View key={i} style={sheet.escRow}>
+                    <Text style={sheet.escTier}>Tier {step.tier}</Text>
+                    <Text style={sheet.escMeta}>
+                      {step.radius}m · {elapsed(step.at)} ago
+                    </Text>
+                  </View>
+                ))}
+              </>
+            ) : null}
+          </ScrollView>
+
+          {/* Actions */}
+          <View style={sheet.actions}>
+            <Pressable
+              onPress={onAck}
+              disabled={youAcked}
+              style={({ pressed }) => [
+                sheet.primaryBtn,
+                youAcked && sheet.primaryBtnDone,
+                pressed && { opacity: 0.85 },
+              ]}
+            >
+              <Ionicons
+                name={youAcked ? 'checkmark-circle' : 'flash'}
+                size={16}
+                color="#0a0a0a"
+              />
+              <Text style={sheet.primaryBtnText}>
+                {youAcked ? 'You are on your way' : "I'm on my way"}
+              </Text>
+            </Pressable>
+            <View style={sheet.secondaryRow}>
+              <Pressable
+                onPress={onVerify}
+                style={({ pressed }) => [sheet.secondaryBtn, pressed && { opacity: 0.85 }]}
+              >
+                <Ionicons name="shield-checkmark-outline" size={14} color="#22c55e" />
+                <Text style={[sheet.secondaryText, { color: '#22c55e' }]}>This is real</Text>
+              </Pressable>
+              <Pressable
+                onPress={onFlag}
+                style={({ pressed }) => [sheet.secondaryBtn, pressed && { opacity: 0.85 }]}
+              >
+                <Ionicons name="alert-circle-outline" size={14} color="#f87171" />
+                <Text style={[sheet.secondaryText, { color: '#f87171' }]}>False alarm</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -275,18 +520,27 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   alertMeta: { color: '#a1a1aa', fontSize: 12, marginTop: 8 },
+  alertActions: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14 },
   respondBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    marginTop: 14,
     backgroundColor: '#f87171',
     paddingVertical: 12,
     borderRadius: 999,
   },
   respondBtnAcked: { backgroundColor: '#22c55e' },
   respondText: { color: '#0a0a0a', fontSize: 13, fontWeight: '700' },
+  detailsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  detailsBtnText: { color: '#fbbf24', fontSize: 12, fontWeight: '600' },
 
   emptyCard: {
     alignItems: 'center',
@@ -330,4 +584,138 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     maxWidth: 320,
   },
+});
+
+const sheet = StyleSheet.create({
+  scrim: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'flex-end',
+  },
+  panel: {
+    backgroundColor: '#0f0f12',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
+    borderColor: '#27272a',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 28,
+    maxHeight: '85%',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  pulse: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#f87171' },
+  headerName: { color: '#fafafa', fontSize: 18, fontWeight: '700' },
+  tierRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 18,
+  },
+  tierBadge: {
+    color: '#fbbf24',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+    backgroundColor: 'rgba(251, 191, 36, 0.10)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+  },
+  tierMeta: { color: '#a1a1aa', fontSize: 12 },
+  label: {
+    color: '#52525b',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 2,
+    marginTop: 14,
+    marginBottom: 8,
+  },
+  coord: { color: '#fafafa', fontSize: 13, fontFamily: Platform.select({ web: 'monospace', default: undefined }) },
+  dim: { color: '#71717a', fontSize: 13, fontStyle: 'italic' },
+  mapBtn: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#18181b',
+    borderWidth: 1,
+    borderColor: '#27272a',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    marginTop: 8,
+  },
+  mapBtnText: { color: '#fafafa', fontSize: 12, fontWeight: '600' },
+  responderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 6,
+  },
+  responderDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#fbbf24' },
+  responderName: { color: '#fafafa', fontSize: 13, fontWeight: '600' },
+  responderMeta: { color: '#71717a', fontSize: 12, marginLeft: 'auto' },
+  verifyRow: { flexDirection: 'row', alignItems: 'center', gap: 24 },
+  verifyStat: { alignItems: 'flex-start' },
+  verifyStatNum: { color: '#22c55e', fontSize: 22, fontWeight: '700' },
+  verifyStatLabel: { color: '#71717a', fontSize: 10, letterSpacing: 1, marginTop: 2 },
+  pausedTag: {
+    marginLeft: 'auto',
+    color: '#f59e0b',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
+    backgroundColor: 'rgba(245, 158, 11, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  escRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+  },
+  escTier: { color: '#fafafa', fontSize: 12, fontWeight: '600' },
+  escMeta: { color: '#71717a', fontSize: 12 },
+  actions: {
+    marginTop: 18,
+    paddingTop: 18,
+    borderTopWidth: 1,
+    borderTopColor: '#1f1f23',
+  },
+  primaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#fbbf24',
+    paddingVertical: 14,
+    borderRadius: 999,
+  },
+  primaryBtnDone: { backgroundColor: '#22c55e' },
+  primaryBtnText: { color: '#0a0a0a', fontSize: 14, fontWeight: '700' },
+  secondaryRow: { flexDirection: 'row', gap: 10, marginTop: 10 },
+  secondaryBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#18181b',
+    borderWidth: 1,
+    borderColor: '#27272a',
+    paddingVertical: 12,
+    borderRadius: 999,
+  },
+  secondaryText: { fontSize: 12, fontWeight: '600' },
 });
