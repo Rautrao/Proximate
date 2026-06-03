@@ -7,6 +7,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -19,7 +20,6 @@ import {
   type BloodGroup,
   type EmergencyContact,
   type Gender,
-  type UserRole,
 } from '@/store/auth';
 import { useOnboardingStore } from '@/store/onboarding';
 
@@ -41,12 +41,6 @@ const BLOOD_GROUPS: BloodGroup[] = [
   'O+', 'O-', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'unknown',
 ];
 
-const ROLES: { value: UserRole; label: string; hint: string }[] = [
-  { value: 'citizen', label: 'Citizen', hint: 'I want protection for myself' },
-  { value: 'responder', label: 'Responder', hint: 'I help nearby users in trouble' },
-  { value: 'police', label: 'Police', hint: 'I am a verified law-enforcement official' },
-];
-
 const MIN_CONTACTS = 1;
 const MAX_CONTACTS = 5;
 
@@ -61,7 +55,8 @@ export default function RegisterScreen() {
   const [emailVerified, setEmailVerified] = useState(false);
   const [gender, setGender] = useState<Gender>('unspecified');
   const [bloodGroup, setBloodGroup] = useState<BloodGroup>('unknown');
-  const [role, setRole] = useState<UserRole>('citizen');
+  const [responderEnabled, setResponderEnabled] = useState(false);
+  const [isPolice, setIsPolice] = useState(false);
   const [contacts, setContacts] = useState<EmergencyContact[]>([
     { name: '', phone: '' },
   ]);
@@ -144,7 +139,8 @@ export default function RegisterScreen() {
         email: email.trim() || undefined,
         gender,
         bloodGroup,
-        role,
+        responderEnabled,
+        isPolice,
         emergencyContacts: trimmedContacts,
       });
       setUser(user);
@@ -248,39 +244,46 @@ export default function RegisterScreen() {
           </View>
         </View>
 
-        {/* Role */}
+        {/* Roles — additive, not exclusive. Everyone is a citizen by default. */}
         <View style={styles.section}>
-          <Text style={styles.sectionHeading}>I am a…</Text>
-          <View style={styles.roleCol}>
-            {ROLES.map((r) => {
-              const selected = role === r.value;
-              return (
-                <Pressable
-                  key={r.value}
-                  onPress={() => setRole(r.value)}
-                  style={({ pressed }) => [
-                    styles.roleCard,
-                    selected && styles.roleCardSelected,
-                    pressed && { opacity: 0.9 },
-                  ]}
-                >
-                  <View style={styles.roleHead}>
-                    <Text style={[styles.roleTitle, selected && styles.roleTitleSelected]}>
-                      {r.label}
-                    </Text>
-                    {selected ? <View style={styles.roleDot} /> : null}
-                  </View>
-                  <Text style={styles.roleHint}>{r.hint}</Text>
-                </Pressable>
-              );
-            })}
+          <Text style={styles.sectionHeading}>Roles (optional)</Text>
+          <Text style={styles.helper}>
+            Every account can call for help. You can also opt in to help others
+            — turn either toggle off anytime in Settings.
+          </Text>
+
+          <View style={styles.toggleCard}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.toggleTitle}>Responder mode</Text>
+              <Text style={styles.toggleHint}>
+                Get notified when someone nearby triggers SOS. You'll see their
+                live location and can choose to acknowledge.
+              </Text>
+            </View>
+            <Switch
+              value={responderEnabled}
+              onValueChange={setResponderEnabled}
+              thumbColor={responderEnabled ? '#fbbf24' : '#71717a'}
+              trackColor={{ true: '#854D0E', false: '#27272a' }}
+            />
           </View>
-          {role === 'police' ? (
-            <Text style={styles.helper}>
-              Police accounts are marked unverified until manually approved by an
-              admin. Your dashboard will work; the verified badge appears after review.
-            </Text>
-          ) : null}
+
+          <View style={styles.toggleCard}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.toggleTitle}>I am a police officer</Text>
+              <Text style={styles.toggleHint}>
+                Adds a credential to your profile, manually reviewed before the
+                verified badge appears. You'll still act as a responder in the
+                meantime.
+              </Text>
+            </View>
+            <Switch
+              value={isPolice}
+              onValueChange={setIsPolice}
+              thumbColor={isPolice ? '#fbbf24' : '#71717a'}
+              trackColor={{ true: '#854D0E', false: '#27272a' }}
+            />
+          </View>
         </View>
 
         {/* Emergency contacts */}
@@ -753,29 +756,21 @@ const styles = StyleSheet.create({
   chipText: { color: '#a1a1aa', fontSize: 13, fontWeight: '600' },
   chipTextSelected: { color: '#fbbf24' },
 
-  /* Role cards */
-  roleCol: { gap: 10, marginTop: 12 },
-  roleCard: {
+  /* Role toggles (additive) */
+  toggleCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
     backgroundColor: '#18181b',
     borderWidth: 1,
     borderColor: '#27272a',
     borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 14,
+    marginTop: 12,
   },
-  roleCardSelected: {
-    borderColor: '#fbbf24',
-    backgroundColor: 'rgba(251, 191, 36, 0.08)',
-  },
-  roleHead: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  roleTitle: { color: '#fafafa', fontSize: 15, fontWeight: '600' },
-  roleTitleSelected: { color: '#fbbf24' },
-  roleDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#fbbf24' },
-  roleHint: { color: '#71717a', fontSize: 12, marginTop: 4 },
+  toggleTitle: { color: '#fafafa', fontSize: 14, fontWeight: '600' },
+  toggleHint: { color: '#71717a', fontSize: 12, marginTop: 4, lineHeight: 17 },
 
   /* Emergency contact card */
   contactCard: {

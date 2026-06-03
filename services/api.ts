@@ -3,7 +3,6 @@ import {
   User,
   Gender,
   BloodGroup,
-  UserRole,
   EmergencyContact,
 } from '@/store/auth';
 
@@ -14,7 +13,8 @@ export interface RegisterPayload {
   email?: string;
   gender?: Gender;
   bloodGroup?: BloodGroup;
-  role: UserRole;
+  responderEnabled?: boolean;
+  isPolice?: boolean;
   emergencyContacts?: EmergencyContact[];
 }
 
@@ -65,6 +65,18 @@ export async function verifyOtp(
 ): Promise<void> {
   try {
     await api.post('/auth/otp/verify', { channel, target, code });
+  } catch (err) {
+    throw new Error(extractMessage(err));
+  }
+}
+
+export async function setResponderMode(token: string, enabled: boolean): Promise<void> {
+  try {
+    await api.post(
+      '/auth/responder',
+      { enabled },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
   } catch (err) {
     throw new Error(extractMessage(err));
   }

@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/auth';
-import { disconnectSocket } from '@/services/socket';
+import { disconnectSocket, getSocket } from '@/services/socket';
+import { setResponderMode } from '@/services/api';
 
 function Row({
   icon,
@@ -37,7 +39,28 @@ function Row({
 }
 
 export default function SettingsScreen() {
-  const { user, logout } = useAuthStore();
+  const { user, logout, setResponderEnabled } = useAuthStore();
+  const [responderBusy, setResponderBusy] = useState(false);
+  const responderOn = Boolean(user?.responderEnabled);
+
+  async function toggleResponder(next: boolean) {
+    if (!user?.token || responderBusy) return;
+    setResponderBusy(true);
+    // Update optimistically so the switch feels instant; revert on API failure.
+    setResponderEnabled(next);
+    try {
+      await setResponderMode(user.token, next);
+      const sock = getSocket();
+      if (sock.connected) {
+        sock.emit(next ? 'citizen:subscribe_responder' : 'citizen:unsubscribe_responder');
+      }
+    } catch (e) {
+      setResponderEnabled(!next);
+      Alert.alert('Could not update', e instanceof Error ? e.message : 'Try again.');
+    } finally {
+      setResponderBusy(false);
+    }
+  }
 
   const handleLogout = () => {
     Alert.alert('Sign out', 'Are you sure you want to sign out?', [
@@ -67,6 +90,42 @@ export default function SettingsScreen() {
             <Text style={styles.userName}>{user?.name}</Text>
             <Text style={styles.userPhone}>{user?.phone}</Text>
           </View>
+        </View>
+
+        {/* Responder mode — opt-in, can be flipped anytime */}
+        <Text style={styles.sectionLabel}>Help others</Text>
+        <View style={styles.responderCard}>
+          <View style={styles.responderHead}>
+            <View style={[styles.responderIcon, responderOn && styles.responderIconOn]}>
+              <Ionicons name="megaphone-outline" size={18} color={responderOn ? '#fbbf24' : '#71717a'} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.responderTitle}>Responder mode</Text>
+              <Text style={styles.responderHint}>
+                When on, you receive alerts when someone nearby triggers SOS and
+                can choose to respond.
+              </Text>
+            </View>
+            <Switch
+              value={responderOn}
+              onValueChange={toggleResponder}
+              disabled={responderBusy}
+              thumbColor={responderOn ? '#fbbf24' : '#71717a'}
+              trackColor={{ true: '#854D0E', false: '#27272a' }}
+            />
+          </View>
+          {user?.isPolice ? (
+            <View style={styles.policeBadge}>
+              <Ionicons
+                name={user.policeVerified ? 'shield-checkmark' : 'shield-outline'}
+                size={13}
+                color={user.policeVerified ? '#22c55e' : '#a1a1aa'}
+              />
+              <Text style={[styles.policeBadgeText, user.policeVerified && { color: '#22c55e' }]}>
+                {user.policeVerified ? 'Verified police' : 'Police — verification pending'}
+              </Text>
+            </View>
+          ) : null}
         </View>
 
         {/* Alert preferences */}
@@ -185,4 +244,46 @@ const styles = StyleSheet.create({
   },
   logoutBtnPressed: { backgroundColor: '#27272a' },
   logoutText: { color: '#f87171', fontSize: 14, fontWeight: '600' },
+
+  /* Responder mode card */
+  responderCard: {
+    backgroundColor: '#0f0f12',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#27272a',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    marginBottom: 28,
+  },
+  responderHead: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  responderIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#18181b',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#27272a',
+  },
+  responderIconOn: {
+    backgroundColor: 'rgba(251, 191, 36, 0.10)',
+    borderColor: 'rgba(251, 191, 36, 0.5)',
+  },
+  responderTitle: { color: '#fafafa', fontSize: 14, fontWeight: '600' },
+  responderHint: { color: '#71717a', fontSize: 12, marginTop: 4, lineHeight: 17 },
+  policeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#1f1f23',
+  },
+  policeBadgeText: { color: '#a1a1aa', fontSize: 11, fontWeight: '600', letterSpacing: 0.5 },
 });

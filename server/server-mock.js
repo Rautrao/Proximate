@@ -41,13 +41,12 @@ app.post('/api/auth/register', (req, res) => {
     email,
     gender,
     bloodGroup,
-    role = 'citizen',
+    responderEnabled = false,
+    isPolice = false,
     emergencyContacts = [],
   } = req.body;
   if (!name || !phone || !password)
     return res.status(400).json({ error: 'Name, phone, and password are required' });
-  if (!['citizen', 'responder', 'police'].includes(role))
-    return res.status(400).json({ error: 'Invalid role' });
   if (users.has(phone))
     return res.status(409).json({ error: 'Phone already registered' });
 
@@ -60,11 +59,13 @@ app.post('/api/auth/register', (req, res) => {
     email,
     gender,
     bloodGroup,
-    role,
+    responderEnabled: Boolean(responderEnabled),
+    isPolice: Boolean(isPolice),
+    policeVerified: false,
     emergencyContacts,
   };
   users.set(phone, record);
-  const token = jwt.sign({ userId: id, role }, SECRET, { expiresIn: '30d' });
+  const token = jwt.sign({ userId: id }, SECRET, { expiresIn: '30d' });
   const { password: _pw, ...safe } = record;
   res.status(201).json({ ...safe, token });
 });
@@ -75,9 +76,27 @@ app.post('/api/auth/login', (req, res) => {
   if (!user || user.password !== password)
     return res.status(401).json({ error: 'Invalid credentials' });
 
-  const token = jwt.sign({ userId: user.id, role: user.role }, SECRET, { expiresIn: '30d' });
+  const token = jwt.sign({ userId: user.id }, SECRET, { expiresIn: '30d' });
   const { password: _pw, ...safe } = user;
   res.json({ ...safe, token });
+});
+
+// Toggle responder mode for an authenticated user. Used by Settings.
+// Persists on the user record so reconnects pick up the new state.
+app.post('/api/auth/responder', (req, res) => {
+  const auth = req.headers.authorization || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
+  if (!token) return res.status(401).json({ error: 'Missing bearer token' });
+  let payload;
+  try { payload = jwt.verify(token, SECRET); }
+  catch { return res.status(401).json({ error: 'Invalid token' }); }
+  const userRecord = [...users.values()].find((u) => u.id === payload.userId);
+  if (!userRecord) return res.status(404).json({ error: 'User not found' });
+
+  const { enabled } = req.body || {};
+  userRecord.responderEnabled = Boolean(enabled);
+  console.log(`[RESPONDER] ${userRecord.name} → ${userRecord.responderEnabled ? 'ON' : 'OFF'}`);
+  res.json({ responderEnabled: userRecord.responderEnabled });
 });
 
 app.post('/api/auth/fcm-token', (_req, res) => res.json({ ok: true }));
@@ -231,6 +250,47 @@ io.on('connection', (socket) => {
   const uid = socket.data.userId;
   socket.join(`user:${uid}`);
   console.log(`[socket] citizen connected userId=${uid}`);
+
+  // Citizens with responder mode on auto-subscribe to the responders feed so
+  // they receive incident:update events the same way the dashboard does.
+  const userRecord = [...users.values()].find((u) => u.id === uid);
+  if (userRecord?.responderEnabled) {
+    socket.join('responders');
+    console.log(`[RESPONDER] auto-subscribed ${userRecord.name} (citizen)`);
+  }
+  socket.on('citizen:subscribe_responder', () => {
+    socket.join('responders');
+    // Push the current snapshot of active incidents so the UI populates immediately.
+    socket.emit(
+      'responder:snapshot',
+      [...incidents.values()]
+        .filter((i) => i.status === 'active')
+        .sort((a, b) => b.startedAt - a.startedAt)
+    );
+    console.log(`[RESPONDER] subscribed citizen userId=${uid}`);
+  });
+  socket.on('citizen:unsubscribe_responder', () => {
+    socket.leave('responders');
+    console.log(`[RESPONDER] unsubscribed citizen userId=${uid}`);
+  });
+
+  // Citizens with responder mode on can also acknowledge a distress signal.
+  // Same shape as the dashboard handler, but uses the user record name.
+  socket.on('responder:ack', ({ incidentId, distance = 280 }) => {
+    if (!socket.rooms.has('responders')) return;
+    const inc = incidents.get(incidentId);
+    if (!inc || inc.userId === uid) return; // can't ack your own incident
+    const responder = {
+      id: socket.id,
+      name: userRecord?.name || 'Nearby user',
+      distance,
+      acknowledgedAt: Date.now(),
+    };
+    inc.responders = [...(inc.responders || []), responder];
+    io.to('responders').emit('incident:update', inc);
+    io.to(`user:${inc.userId}`).emit('sos:responder_ack', responder);
+    console.log(`[ACK] (citizen-responder) ${responder.name} → ${incidentId}`);
+  });
 
   socket.on('location:update', () => {});
 
