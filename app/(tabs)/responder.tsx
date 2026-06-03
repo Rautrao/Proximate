@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/auth';
@@ -20,24 +20,25 @@ export default function ResponderScreen() {
   const { user, setResponderEnabled } = useAuthStore();
   const responderOn = Boolean(user?.responderEnabled);
   const [nearbyIncidents, setNearbyIncidents] = useState<NearbyIncident[]>([]);
-  const [busy, setBusy] = useState(false);
+  const [syncWarn, setSyncWarn] = useState('');
 
-  async function toggle(next: boolean) {
-    if (!user?.token || busy) return;
-    setBusy(true);
+  // Local-first: flip the store + emit the socket event immediately so the
+  // UI never feels stuck. The HTTP sync runs in the background; if it fails
+  // (e.g. the mock server was restarted and lost the user record) we just
+  // show a small notice — the local toggle still works.
+  function toggle(next: boolean) {
+    if (!user?.token) return;
     setResponderEnabled(next);
-    try {
-      await setResponderMode(user.token, next);
-      const sock = getSocket();
-      if (sock.connected) {
-        sock.emit(next ? 'citizen:subscribe_responder' : 'citizen:unsubscribe_responder');
-      }
-    } catch (e) {
-      setResponderEnabled(!next);
-      Alert.alert('Could not update', e instanceof Error ? e.message : 'Try again.');
-    } finally {
-      setBusy(false);
+    setSyncWarn('');
+    const sock = getSocket();
+    if (sock?.connected) {
+      sock.emit(next ? 'citizen:subscribe_responder' : 'citizen:unsubscribe_responder');
     }
+    setResponderMode(user.token, next).catch((e) => {
+      setSyncWarn(
+        e instanceof Error ? e.message : 'Server preference could not be saved.'
+      );
+    });
   }
 
   // Only listen for alerts when responder mode is on. Same subscribe path the
@@ -117,11 +118,11 @@ export default function ResponderScreen() {
           <Switch
             value={responderOn}
             onValueChange={toggle}
-            disabled={busy}
             thumbColor={responderOn ? '#fbbf24' : '#71717a'}
             trackColor={{ true: '#854D0E', false: '#27272a' }}
           />
         </View>
+        {syncWarn ? <Text style={styles.syncWarn}>Couldn't sync with server: {syncWarn}</Text> : null}
 
         {/* Alerts list */}
         {responderOn ? (
@@ -236,6 +237,13 @@ const styles = StyleSheet.create({
   },
   modeTitle: { color: '#fafafa', fontSize: 14, fontWeight: '600' },
   modeHint: { color: '#71717a', fontSize: 12, marginTop: 4, lineHeight: 17 },
+  syncWarn: {
+    color: '#f59e0b',
+    fontSize: 11,
+    marginTop: -12,
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
 
   alertsBlock: { marginTop: 4 },
   alertsLabel: {

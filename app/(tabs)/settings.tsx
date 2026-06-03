@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -40,26 +39,21 @@ function Row({
 
 export default function SettingsScreen() {
   const { user, logout, setResponderEnabled } = useAuthStore();
-  const [responderBusy, setResponderBusy] = useState(false);
   const responderOn = Boolean(user?.responderEnabled);
 
-  async function toggleResponder(next: boolean) {
-    if (!user?.token || responderBusy) return;
-    setResponderBusy(true);
-    // Update optimistically so the switch feels instant; revert on API failure.
+  // Local-first toggle — never gate on the API call, so a restarted dev
+  // server (or any transient network blip) can't lock the switch.
+  function toggleResponder(next: boolean) {
+    if (!user?.token) return;
     setResponderEnabled(next);
-    try {
-      await setResponderMode(user.token, next);
-      const sock = getSocket();
-      if (sock.connected) {
-        sock.emit(next ? 'citizen:subscribe_responder' : 'citizen:unsubscribe_responder');
-      }
-    } catch (e) {
-      setResponderEnabled(!next);
-      Alert.alert('Could not update', e instanceof Error ? e.message : 'Try again.');
-    } finally {
-      setResponderBusy(false);
+    const sock = getSocket();
+    if (sock?.connected) {
+      sock.emit(next ? 'citizen:subscribe_responder' : 'citizen:unsubscribe_responder');
     }
+    setResponderMode(user.token, next).catch(() => {
+      // Server sync failed — the local preference and socket subscription
+      // still took effect, so leave the switch where the user put it.
+    });
   }
 
   const handleLogout = () => {
@@ -109,7 +103,6 @@ export default function SettingsScreen() {
             <Switch
               value={responderOn}
               onValueChange={toggleResponder}
-              disabled={responderBusy}
               thumbColor={responderOn ? '#fbbf24' : '#71717a'}
               trackColor={{ true: '#854D0E', false: '#27272a' }}
             />
