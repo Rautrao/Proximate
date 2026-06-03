@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { SOSButton } from '@/components/SOSButton';
@@ -8,18 +8,7 @@ import { useVolumeButtonTrigger } from '@/hooks/useVolumeButtonTrigger';
 import { useSOSEngine } from '@/hooks/useSOSEngine';
 import { useAuthStore } from '@/store/auth';
 import { usePreferencesStore } from '@/store/preferences';
-import { requestLocationPermission } from '@/services/location';
-import { connectSocket, getSocket } from '@/services/socket';
 import { registerFCMToken } from '@/services/api';
-
-interface NearbyIncident {
-  id: string;
-  victimName: string;
-  tier: number;
-  radius: number;
-  startedAt: number;
-  status: 'active' | 'cancelled' | 'resolved';
-}
 
 export default function HomeScreen() {
   const { triggerSOS, status } = useSOSEngine();
@@ -27,7 +16,6 @@ export default function HomeScreen() {
   const responderOn = Boolean(user?.responderEnabled);
   const videoEnabled = usePreferencesStore((s) => s.videoEnabled);
   const setVideoEnabled = usePreferencesStore((s) => s.setVideoEnabled);
-  const [nearbyIncidents, setNearbyIncidents] = useState<NearbyIncident[]>([]);
 
   // Shake triggers SOS only when the app is idle
   useShakeTrigger(triggerSOS, status === 'idle');
@@ -37,73 +25,11 @@ export default function HomeScreen() {
 
   useEffect(() => {
     if (!user?.token) return;
-    requestLocationPermission();
-    connectSocket(user.token);
-
-    // Tell the server our FCM push token (stored on the device by expo-notifications).
-    // This enables push alerts when the app is backgrounded.
-    // To activate: install expo-notifications and replace the placeholder below.
+    // Socket + GPS are wired in (tabs)/_layout.tsx; this hook only deals with
+    // the (currently placeholder) FCM token registration.
     const fcmToken: string | null = null; // TODO: await Notifications.getExpoPushTokenAsync()
     if (fcmToken) registerFCMToken(user.id, user.token, fcmToken);
-
-    // Intentionally NOT disconnecting on unmount: the socket needs to survive
-    // navigation to /sos-active. The escalateTier flow awaits GPS permission
-    // before emitting — if we tear down the socket here, the await lets home
-    // unmount first and the emit silently drops. The socket disconnects when
-    // the user explicitly signs out (see Settings → handleLogout).
   }, [user]);
-
-  // Subscribe to the responders feed whenever the toggle is on. The server
-  // pushes a snapshot back so we populate immediately and then updates flow
-  // in via incident:update / incident:cancelled.
-  useEffect(() => {
-    if (!user?.token) return;
-    const sock = getSocket();
-    if (!sock) return;
-
-    function onSnapshot(list: NearbyIncident[]) {
-      setNearbyIncidents(list.filter((i) => i.status === 'active'));
-    }
-    function onUpdate(inc: NearbyIncident) {
-      setNearbyIncidents((cur) => {
-        if (inc.status !== 'active') return cur.filter((x) => x.id !== inc.id);
-        const idx = cur.findIndex((x) => x.id === inc.id);
-        if (idx === -1) return [inc, ...cur];
-        const next = [...cur];
-        next[idx] = inc;
-        return next;
-      });
-    }
-    function onCancelled({ id }: { id: string }) {
-      setNearbyIncidents((cur) => cur.filter((x) => x.id !== id));
-    }
-
-    if (responderOn) {
-      sock.on('responder:snapshot', onSnapshot);
-      sock.on('incident:update', onUpdate);
-      sock.on('incident:cancelled', onCancelled);
-      // The server checks the user's persisted flag on connect, but if the
-      // toggle flipped after connect we still need to ask it to (re)join.
-      const askToJoin = () => sock.emit('citizen:subscribe_responder');
-      if (sock.connected) askToJoin();
-      else sock.on('connect', askToJoin);
-
-      return () => {
-        sock.off('responder:snapshot', onSnapshot);
-        sock.off('incident:update', onUpdate);
-        sock.off('incident:cancelled', onCancelled);
-        sock.off('connect', askToJoin);
-      };
-    } else {
-      setNearbyIncidents([]);
-      if (sock.connected) sock.emit('citizen:unsubscribe_responder');
-    }
-  }, [responderOn, user?.token]);
-
-  function acknowledge(incidentId: string) {
-    const sock = getSocket();
-    if (sock?.connected) sock.emit('responder:ack', { incidentId, distance: 280 });
-  }
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -128,37 +54,6 @@ export default function HomeScreen() {
         <Text style={styles.greeting}>
           Hello, {user?.name?.split(' ')[0] ?? 'there'}
         </Text>
-
-        {responderOn && nearbyIncidents.length > 0 ? (
-          <View style={styles.alertsCard}>
-            <View style={styles.alertsHead}>
-              <View style={styles.alertsPulse} />
-              <Text style={styles.alertsTitle}>
-                {nearbyIncidents.length === 1
-                  ? 'Distress signal nearby'
-                  : `${nearbyIncidents.length} active distress signals`}
-              </Text>
-            </View>
-            <ScrollView style={{ maxHeight: 180 }} showsVerticalScrollIndicator={false}>
-              {nearbyIncidents.map((inc) => (
-                <View key={inc.id} style={styles.alertRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.alertVictim}>{inc.victimName}</Text>
-                    <Text style={styles.alertMeta}>
-                      Tier {inc.tier} · {inc.radius}m radius
-                    </Text>
-                  </View>
-                  <Pressable
-                    onPress={() => acknowledge(inc.id)}
-                    style={({ pressed }) => [styles.alertAck, pressed && { opacity: 0.85 }]}
-                  >
-                    <Text style={styles.alertAckText}>Respond</Text>
-                  </Pressable>
-                </View>
-              ))}
-            </ScrollView>
-          </View>
-        ) : null}
 
         {/* SOS zone */}
         <View style={styles.sosZone}>
@@ -251,36 +146,6 @@ const styles = StyleSheet.create({
   },
   responderDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#fbbf24' },
   responderText: { color: '#fbbf24', fontSize: 11, fontWeight: '600', letterSpacing: 1 },
-
-  /* Nearby alerts banner */
-  alertsCard: {
-    width: '100%',
-    marginTop: 14,
-    padding: 14,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(248, 113, 113, 0.4)',
-    backgroundColor: 'rgba(248, 113, 113, 0.06)',
-  },
-  alertsHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
-  alertsPulse: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#f87171' },
-  alertsTitle: { color: '#fafafa', fontSize: 13, fontWeight: '700', letterSpacing: 0.3 },
-  alertRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(248, 113, 113, 0.2)',
-  },
-  alertVictim: { color: '#fafafa', fontSize: 13, fontWeight: '600' },
-  alertMeta: { color: '#a1a1aa', fontSize: 11, marginTop: 2 },
-  alertAck: {
-    backgroundColor: '#f87171',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
-  },
-  alertAckText: { color: '#0a0a0a', fontSize: 12, fontWeight: '700', letterSpacing: 0.3 },
   greeting: {
     color: '#71717a',
     fontSize: 13,

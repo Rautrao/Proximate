@@ -92,16 +92,20 @@ export default function RegisterScreen() {
 
   const handleRegister = async () => {
     setError('');
-    if (!name.trim() || !phone.trim() || !password) {
-      setError('Name, phone, and password are required.');
+    if (!name.trim() || !phone.trim() || !email.trim() || !password) {
+      setError('Name, phone, email, and password are all required.');
+      return;
+    }
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+      setError('Email address looks invalid.');
       return;
     }
     if (!phoneVerified) {
       setError('Please verify your phone number with the OTP first.');
       return;
     }
-    if (email && !emailVerified) {
-      setError('Please verify your email or remove it.');
+    if (!emailVerified) {
+      setError('Please verify your email with the OTP.');
       return;
     }
     if (password.length < 6) {
@@ -110,10 +114,6 @@ export default function RegisterScreen() {
     }
     if (password !== confirm) {
       setError('Passwords do not match.');
-      return;
-    }
-    if (email && !/^\S+@\S+\.\S+$/.test(email)) {
-      setError('Email address looks invalid.');
       return;
     }
     const trimmedContacts = contacts
@@ -136,7 +136,7 @@ export default function RegisterScreen() {
         name: name.trim(),
         phone: phone.trim(),
         password,
-        email: email.trim() || undefined,
+        email: email.trim(),
         gender,
         bloodGroup,
         responderEnabled,
@@ -196,7 +196,7 @@ export default function RegisterScreen() {
             onVerified={() => setPhoneVerified(true)}
           />
 
-          <Text style={styles.label}>Email (optional)</Text>
+          <Text style={styles.label}>Email</Text>
           <TextInput
             style={[styles.input, emailVerified && styles.inputVerified]}
             value={email}
@@ -208,14 +208,12 @@ export default function RegisterScreen() {
             autoComplete="email"
             editable={!emailVerified}
           />
-          {email.length > 0 ? (
-            <OtpField
-              channel="email"
-              target={email}
-              verified={emailVerified}
-              onVerified={() => setEmailVerified(true)}
-            />
-          ) : null}
+          <OtpField
+            channel="email"
+            target={email}
+            verified={emailVerified}
+            onVerified={() => setEmailVerified(true)}
+          />
 
           <Text style={styles.label}>Gender</Text>
           <GenderSelect value={gender} onChange={setGender} />
